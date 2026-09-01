@@ -1,0 +1,27 @@
+{
+  "name": "syntax-hub",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SyntaxHub - Monorepo for AI-powered code analysis platform with client, server, and AI services",
+  "scripts": {
+    "dev:client": "npm --prefix client run dev",
+    "dev:server": "npm --prefix server run dev",
+    "dev:services": "cd services && (.venv/bin/uvicorn main:app --reload --port 8000 || uvicorn main:app --reload --port 8000)",
+    "build:client": "npm --prefix client run build",
+    "install:all": "npm --prefix client install && npm --prefix server install && cd services && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt",
+    "docker:up": "docker-compose up --build",
+    "docker:down": "docker-compose down"
+  },
+  "keywords": [
+    "syntax-hub",
+    "rag",
+    "llm",
+    "chromadb",
+    "nextjs",
+    "express",
+    "fastapi",
+    "mongodb"
+  ],
+  "author": "",
+  "license": "MIT"
+}

@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7.0
+    container_name: syntaxhub_mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: syntaxhub
+    volumes:
+      - mongo_data:/data/db
+
+  # Node.js Express Backend
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: syntaxhub_server
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      PORT: 5000
+      MONGO_URI: mongodb://mongodb:27017/syntaxhub
+      JWT_SECRET: syntaxhub_super_secret_jwt_key_change_in_production
+      AI_SERVICE_URL: http://services:8000
+    depends_on:
+      - mongodb
+      - services
+
+  # Python FastAPI AI & RAG Microservice
+  services:
+    build:
+      context: ./services
+      dockerfile: Dockerfile
+    container_name: syntaxhub_ai_services
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      PORT: 8000
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      CHROMA_PERSIST_DIR: ./chroma_db
+    volumes:
+      - chroma_data:/app/chroma_db
+
+  # Next.js Client
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: syntaxhub_client
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:5000/api
+      NEXT_PUBLIC_AI_SERVICE_URL: http://localhost:8000/api
+    depends_on:
+      - server
+
+volumes:
+  mongo_data:
+  chroma_data:
