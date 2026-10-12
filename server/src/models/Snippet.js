@@ -32,6 +32,11 @@ const SnippetSchema = new mongoose.Schema(
       ref: 'User',
       required: false,
     },
+    project: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Project',
+      required: false,
+    },
     isPublic: {
       type: Boolean,
       default: true,

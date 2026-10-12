@@ -8,6 +8,7 @@ const authRoutes = require('./routes/authRoutes');
 const snippetRoutes = require('./routes/snippetRoutes');
 const aiRoutes = require('./routes/aiRoutes');
 const analysisRoutes = require('./routes/analysisRoutes');
+const projectRoutes = require('./routes/projectRoutes');
 
 const app = express();
 
@@ -34,6 +35,7 @@ app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/snippets', snippetRoutes);
 app.use('/api/v1/ai', aiRoutes);
 app.use('/api/v1/analyses', analysisRoutes);
+app.use('/api/v1/projects', projectRoutes);
 
 // Error Handling Middleware
 app.use(errorHandler);

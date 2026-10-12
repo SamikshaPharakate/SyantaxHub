@@ -52,4 +52,22 @@ class VectorDBClient:
                 })
         return formatted_results
 
+    def get_stats(self) -> Dict[str, Any]:
+        try:
+            collections = self.client.list_collections()
+            stats = {}
+            total_docs = 0
+            for col in collections:
+                col_obj = self.client.get_collection(col.name)
+                count = col_obj.count()
+                stats[col.name] = count
+                total_docs += count
+            return {
+                "status": "online",
+                "total_documents": total_docs,
+                "collections": stats
+            }
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
+
 vector_db = VectorDBClient()

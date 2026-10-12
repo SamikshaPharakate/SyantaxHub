@@ -26,10 +26,25 @@ exports.getAnalyses = async (req, res, next) => {
   try {
     const filter = {};
     if (req.query.saved === 'true') filter.isSaved = true;
+    if (req.query.technology) filter.technology = new RegExp(req.query.technology, 'i');
+    if (req.query.language) filter.language = req.query.language.toLowerCase();
+    if (req.query.status) filter.status = req.query.status;
     if (req.user) filter.user = req.user.id;
 
     const analyses = await Analysis.find(filter).sort({ createdAt: -1 });
     res.status(200).json({ success: true, count: analyses.length, data: analyses });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getAnalysisById = async (req, res, next) => {
+  try {
+    const analysis = await Analysis.findById(req.params.id);
+    if (!analysis) {
+      return res.status(404).json({ success: false, error: 'Analysis not found' });
+    }
+    res.status(200).json({ success: true, data: analysis });
   } catch (err) {
     next(err);
   }

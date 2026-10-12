@@ -37,6 +37,14 @@ async def seed_official_documentation():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/stats", response_model=AIResponse)
+async def get_rag_stats():
+    try:
+        stats = rag_engine.get_stats()
+        return AIResponse(success=True, data=stats)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/index-code", response_model=AIResponse)
 async def index_code(payload: CodeIndexRequest):
     try:

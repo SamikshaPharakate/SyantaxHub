@@ -34,6 +34,13 @@ export interface CodeExplainRequest {
   context?: string;
 }
 
+export interface ProjectItem {
+  _id?: string;
+  name: string;
+  description?: string;
+  technology?: string;
+}
+
 /**
  * Backend API Client (Node.js Express)
  */
@@ -94,11 +101,86 @@ export const backendApi = {
     return res.json();
   },
 
+  async toggleSaveAnalysis(id: string, token?: string) {
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${BACKEND_API_BASE}/v1/analyses/${id}/toggle-save`, {
+      method: 'PATCH',
+      headers,
+    });
+    return res.json();
+  },
+
+  async deleteAnalysis(id: string, token?: string) {
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${BACKEND_API_BASE}/v1/analyses/${id}`, {
+      method: 'DELETE',
+      headers,
+    });
+    return res.json();
+  },
+
   async seedOfficialDocs() {
     const res = await fetch(`${BACKEND_API_BASE}/v1/ai/seed-docs`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
+    return res.json();
+  },
+
+  async queryRAG(payload: RAGQueryRequest, token?: string) {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${BACKEND_API_BASE}/v1/ai/rag-query`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
+    return res.json();
+  },
+
+  async getMe(token: string) {
+    const res = await fetch(`${BACKEND_API_BASE}/v1/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return res.json();
+  },
+
+  // Projects
+  async fetchProjects(token?: string) {
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${BACKEND_API_BASE}/v1/projects`, { headers });
+    return res.json();
+  },
+
+  async createProject(project: ProjectItem, token?: string) {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${BACKEND_API_BASE}/v1/projects`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(project),
+    });
+    return res.json();
+  },
+
+  async deleteProject(id: string, token?: string) {
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${BACKEND_API_BASE}/v1/projects/${id}`, {
+      method: 'DELETE',
+      headers,
+    });
+    return res.json();
+  },
+
+  // AI Query Logs
+  async fetchAILogs(token?: string) {
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${BACKEND_API_BASE}/v1/ai/logs`, { headers });
     return res.json();
   },
 
@@ -117,6 +199,16 @@ export const backendApi = {
       method: 'POST',
       headers,
       body: JSON.stringify(snippet),
+    });
+    return res.json();
+  },
+
+  async deleteSnippet(id: string, token?: string) {
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${BACKEND_API_BASE}/v1/snippets/${id}`, {
+      method: 'DELETE',
+      headers,
     });
     return res.json();
   },
