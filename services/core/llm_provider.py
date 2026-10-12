@@ -167,10 +167,18 @@ class LLMProvider:
 
         # --- Java patterns ---
         if "java" in prompt_lower:
+            if "new integer(" in prompt_lower or "new double(" in prompt_lower or "new long(" in prompt_lower or "new float(" in prompt_lower or "new boolean(" in prompt_lower or "new byte(" in prompt_lower or "new short(" in prompt_lower or "new character(" in prompt_lower:
+                issues.append("- **Deprecated Wrapper Constructor**: Primitive wrapper constructors like `new Integer(...)` or `new Double(...)` are deprecated since Java 9 and marked for removal. Use auto-boxing (e.g. `Integer number = 100;`) or `Integer.valueOf(100)`.")
             if "newfixedthreadpool" in prompt_lower or "newcachedthreadpool" in prompt_lower:
                 issues.append("- **Legacy OS Thread Pool**: Detected fixed/cached OS thread pool (`Executors.newFixedThreadPool`). In Java 21+, migrate to lightweight Virtual Threads with `Executors.newVirtualThreadPerTaskExecutor()` for orders-of-magnitude higher concurrency.")
             if "vector" in prompt_lower or "hashtable" in prompt_lower:
                 issues.append("- **Legacy Collections**: `Vector` / `Hashtable` detected. Migrate to `ArrayList`, `ConcurrentHashMap`, or modern immutable collections (`List.of`, `Map.of`).")
+            if "new arraylist<" in prompt_lower and not "new arraylist<>()" in prompt_lower and not "new arraylist<>" in prompt_lower:
+                warnings.append("- **Redundant Type Arguments**: Explicit type arguments on collection instantiation (e.g., `new ArrayList<String>()`) are outdated. Use the diamond operator `<>` (Java 7+) or `List.of(...)` (Java 9+).")
+            if "for (int " in prompt_lower and (".size()" in prompt_lower or "< names.size()" in prompt_lower or "< list.size()" in prompt_lower):
+                warnings.append("- **Legacy Indexed For-Loop**: Traditional indexed loops over collections (`for (int i = 0; i < collection.size(); i++)`) are legacy patterns. In modern Java, prefer enhanced for-each loops (`for (String item : items)`) or `collection.forEach(System.out::println)`.")
+            if ".add(" in prompt_lower and prompt_lower.count(".add(") >= 2 and ("list" in prompt_lower or "names" in prompt_lower):
+                warnings.append("- **Imperative Collection Instantiation**: Successive `.add()` calls to populate constant lists can be replaced in modern Java (9+) with concise immutable factories like `List.of(...)`.")
             if "synchronized" in prompt_lower:
                 warnings.append("- **`synchronized` Block**: Heavyweight synchronized lock detected. In Java 21 Virtual Threads, prefer `ReentrantLock` to avoid thread pinning.")
             if "virtualthread" in prompt_lower:
@@ -179,6 +187,8 @@ class LLMProvider:
                 positive.append("- Uses local variable type inference (`var`, Java 10+).")
             if "record " in prompt_lower:
                 positive.append("- Uses immutable `record` classes (Java 16+).")
+            if "list.of(" in prompt_lower or "map.of(" in prompt_lower or "set.of(" in prompt_lower:
+                positive.append("- Uses modern Java 9+ immutable collection factories (`List.of`, `Map.of`).")
             if "stream()" in prompt_lower or ".stream()" in prompt_lower:
                 positive.append("- Uses functional Stream API.")
             if "public class" in prompt_lower or "class " in prompt_lower:

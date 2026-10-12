@@ -4,6 +4,7 @@
   "private": true,
   "description": "SyntaxHub - Monorepo for AI-powered code analysis platform with client, server, and AI services",
   "scripts": {
+    "dev": "node dev.js",
     "dev:client": "npm --prefix client run dev",
     "dev:server": "npm --prefix server run dev",
     "dev:services": "cd services && (.venv\\Scripts\\python main.py || .venv/bin/python main.py || python main.py)",

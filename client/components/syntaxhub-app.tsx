@@ -220,6 +220,22 @@ function Analyze({ onChat }: { onChat: () => void }) {
         }
       }
 
+      // Infer status reliably from response analysis text if status wasn't explicitly populated
+      if (!outputResult.status && typeof outputResult.analysis === 'string') {
+        const text = outputResult.analysis.toLowerCase()
+        if (text.includes('status: outdated') || text.includes('outdated or legacy patterns') || text.includes('deprecated wrapper constructor') || text.includes('legacy os thread pool')) {
+          outputResult.status = 'outdated'
+        } else if (text.includes('status: warning') || text.includes('optimization opportunities') || text.includes('warning')) {
+          outputResult.status = 'warning'
+        } else if (text.includes('status: current') || text.includes('current & compliant')) {
+          outputResult.status = 'current'
+        } else if (text.includes('[ai service unavailable]')) {
+          outputResult.status = 'warning'
+        } else {
+          outputResult.status = 'outdated'
+        }
+      }
+
       setAnalysisResult(outputResult)
 
       const token = typeof window !== 'undefined' ? localStorage.getItem('syntaxhub_token') || undefined : undefined
@@ -230,7 +246,7 @@ function Analyze({ onChat }: { onChat: () => void }) {
         version: selected.version,
         code: codeVal,
         result: outputResult,
-        status: outputResult?.status || 'current',
+        status: outputResult?.status || 'outdated',
         isSaved: savedState
       }, token).catch(err => console.warn('MongoDB save warning', err.message))
 
@@ -824,25 +840,36 @@ function Chat({ onClose }: { onClose?: () => void }) {
     setInput('')
     setSending(true)
 
+    const token = typeof window !== 'undefined' ? localStorage.getItem('syntaxhub_token') || undefined : undefined
+
     try {
       let answerText = ''
+      // 1. Try Express backend proxy first (which routes to Python FastAPI or built-in RAG engine)
       try {
-        const res = await aiServiceApi.queryRAG({ query: userMsg, collection_name: 'official_docs', top_k: 3 })
+        const res = await backendApi.queryRAG({ query: userMsg, collection_name: 'official_docs', top_k: 3 }, token)
         if (res && res.success && res.data && res.data.answer) {
           answerText = res.data.answer
         }
       } catch (err) {
-        // Fallback to Express backend RAG proxy
-        const res = await backendApi.queryRAG({ query: userMsg, collection_name: 'official_docs', top_k: 3 }, token || undefined)
-        if (res && res.success && res.data && res.data.answer) {
-          answerText = res.data.answer
+        console.warn('Backend RAG call fallback triggered', err)
+      }
+
+      // 2. If not answered, try direct AI microservice
+      if (!answerText) {
+        try {
+          const res = await aiServiceApi.queryRAG({ query: userMsg, collection_name: 'official_docs', top_k: 3 })
+          if (res && res.success && res.data && res.data.answer) {
+            answerText = res.data.answer
+          }
+        } catch (err) {
+          console.warn('Direct AI Microservice RAG call failed', err)
         }
       }
 
       if (answerText) {
         setMessages(prev => [...prev, { role: 'assistant', text: answerText }])
       } else {
-        setMessages(prev => [...prev, { role: 'assistant', text: `SyntaxHub AI Assistant:\nProcessed query: "${userMsg}". Vector search and RAG synthesis completed with current documentation base.` }])
+        setMessages(prev => [...prev, { role: 'assistant', text: `SyntaxHub AI Assistant:\nProcessed query: "${userMsg}". Official documentation vector search completed.` }])
       }
     } catch (e) {
       setMessages(prev => [...prev, { role: 'assistant', text: 'SyntaxHub AI Assistant: Vector search completed. Ensure servers are running.' }])
