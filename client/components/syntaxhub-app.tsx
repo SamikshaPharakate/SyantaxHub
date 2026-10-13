@@ -826,12 +826,39 @@ function SettingsPage({ enter }: { enter: (s: string) => void }) {
   </div>
 }
 
-function Chat({ onClose }: { onClose?: () => void }) {
+function Chat({ onClose, user }: { onClose?: () => void; user?: any }) {
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; text: string }>>([
-    { role: 'assistant', text: 'Hello! I am SyntaxHub AI assistant powered by OpenRouter LLM and ChromaDB vector search. Ask me anything about Java 21, React 19, JavaScript, or Python code refactoring.' }
+    { role: 'assistant', text: 'Hello! I am SyntaxHub AI assistant powered by Pollinations AI + ChromaDB RAG vector search. Ask me anything about Java 21, React 19, JavaScript ES2024, or Python 3.13 — I give real answers!' }
   ])
   const [sending, setSending] = useState(false)
+
+  // Compute the logged-in user's initials and display name
+  const userInitials = user?.name
+    ? user.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
+    : 'JD'
+  const userName = user?.name ? user.name.split(' ')[0] : 'You'
+
+  const callPollinationsAI = async (query: string): Promise<string> => {
+    const sysPrompt = 'You are SyntaxHub AI, an expert programming assistant specializing in Java 21 (Virtual Threads, Records, Pattern Matching), React 19 (Server Components, use() hook), JavaScript ES2024 (Object.groupBy, Promise.withResolvers), and Python 3.13 (GIL-free, PEP 695 generics). Provide clear, accurate, helpful answers with code examples in markdown.'
+    const payload = {
+      messages: [
+        { role: 'system', content: sysPrompt },
+        { role: 'user', content: query }
+      ],
+      model: 'openai',
+      seed: 42
+    }
+    const resp = await fetch('https://text.pollinations.ai/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    if (!resp.ok) throw new Error(`Pollinations API ${resp.status}`)
+    const text = await resp.text()
+    if (text && text.length > 10 && !text.startsWith('{"error"')) return text.trim()
+    throw new Error('Empty response from Pollinations')
+  }
 
   const send = async () => {
     if (!input.trim() || sending) return
@@ -844,17 +871,18 @@ function Chat({ onClose }: { onClose?: () => void }) {
 
     try {
       let answerText = ''
-      // 1. Try Express backend proxy first (which routes to Python FastAPI or built-in RAG engine)
+
+      // 1. Try Express backend proxy first (routes to Python FastAPI + ChromaDB RAG)
       try {
         const res = await backendApi.queryRAG({ query: userMsg, collection_name: 'official_docs', top_k: 3 }, token)
         if (res && res.success && res.data && res.data.answer) {
           answerText = res.data.answer
         }
       } catch (err) {
-        console.warn('Backend RAG call fallback triggered', err)
+        console.warn('Backend RAG call unavailable, trying fallbacks...', err)
       }
 
-      // 2. If not answered, try direct AI microservice
+      // 2. Try direct Python FastAPI AI microservice
       if (!answerText) {
         try {
           const res = await aiServiceApi.queryRAG({ query: userMsg, collection_name: 'official_docs', top_k: 3 })
@@ -862,31 +890,43 @@ function Chat({ onClose }: { onClose?: () => void }) {
             answerText = res.data.answer
           }
         } catch (err) {
-          console.warn('Direct AI Microservice RAG call failed', err)
+          console.warn('Direct AI Microservice unavailable, using free LLM...', err)
         }
       }
 
-      if (answerText) {
-        setMessages(prev => [...prev, { role: 'assistant', text: answerText }])
-      } else {
-        setMessages(prev => [...prev, { role: 'assistant', text: `SyntaxHub AI Assistant:\nProcessed query: "${userMsg}". Official documentation vector search completed.` }])
+      // 3. Final fallback: Pollinations.ai free LLM (always works, no API key needed)
+      if (!answerText) {
+        try {
+          answerText = await callPollinationsAI(userMsg)
+        } catch (err) {
+          console.warn('Pollinations AI fallback failed', err)
+          answerText = `I received your question: "${userMsg}"\n\nPlease ensure at least one server is running for full RAG answers. For best results, start both servers with: npm run dev`
+        }
       }
+
+      setMessages(prev => [...prev, { role: 'assistant', text: answerText }])
     } catch (e) {
-      setMessages(prev => [...prev, { role: 'assistant', text: 'SyntaxHub AI Assistant: Vector search completed. Ensure servers are running.' }])
+      setMessages(prev => [...prev, { role: 'assistant', text: 'Connection error. Please check that servers are running with: npm run dev' }])
     } finally {
       setSending(false)
     }
   }
 
-  return <div className="page-content chat-page"><Header eyebrow="OPENROUTER + RAG ASSISTANT" title="AI Chat" description="Interactive conversation with code context from ChromaDB vector store." action={onClose && <button className="icon-button" onClick={onClose} aria-label="Close chat"><X size={18} /></button>} />
+  return <div className="page-content chat-page"><Header eyebrow="POLLINATIONS AI + RAG ASSISTANT" title="AI Chat" description="Real-time AI conversation powered by Pollinations LLM + ChromaDB vector search." action={onClose && <button className="icon-button" onClick={onClose} aria-label="Close chat"><X size={18} /></button>} />
     <div className="chat-card content-card">
       <div className="messages" style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '500px', overflowY: 'auto' }}>
         {messages.map((m, idx) => (
           <div className={`message ${m.role}`} key={idx} style={{ display: 'flex', gap: '12px' }}>
-            <div className={`avatar ${m.role === 'assistant' ? 'bot' : ''}`}>{m.role === 'assistant' ? <Bot size={14} /> : 'JD'}</div>
-            <div style={{ flex: 1 }}><b>{m.role === 'assistant' ? 'SyntaxHub OpenRouter AI' : 'You'}</b><p style={{ whiteSpace: 'pre-wrap', marginTop: '4px' }}>{m.text}</p></div>
+            <div className={`avatar ${m.role === 'assistant' ? 'bot' : ''}`}>{m.role === 'assistant' ? <Bot size={14} /> : userInitials}</div>
+            <div style={{ flex: 1 }}><b>{m.role === 'assistant' ? 'SyntaxHub AI' : userName}</b><p style={{ whiteSpace: 'pre-wrap', marginTop: '4px' }}>{m.text}</p></div>
           </div>
         ))}
+        {sending && (
+          <div className="message assistant" style={{ display: 'flex', gap: '12px' }}>
+            <div className="avatar bot"><Bot size={14} /></div>
+            <div style={{ flex: 1 }}><b>SyntaxHub AI</b><p style={{ marginTop: '4px', opacity: 0.6 }}>Thinking<span style={{ animation: 'pulse 1s infinite' }}>...</span></p></div>
+          </div>
+        )}
       </div>
       <div className="chat-composer" style={{ marginTop: '16px', display: 'flex', gap: '8px' }}>
         <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder="Ask SyntaxHub about Java 21, React 19, JS ES2024, Python 3.13..." rows={1} style={{ flex: 1 }} />
@@ -935,7 +975,7 @@ export default function SyntaxHubApp() {
     if (active === 'Snippets') return <SnippetsPage />
     if (active === 'Projects') return <ProjectsPage />
     if (active === 'Documentation') return <Documentation />
-    if (active === 'AI Chat') return <Chat />
+    if (active === 'AI Chat') return <Chat user={user} />
     if (active === 'Saved Analyses' || active === 'History') return <ListPage kind={active} goAnalyze={() => setActive('Analyze')} />
     if (active === 'Settings') return <SettingsPage enter={enter} />
     return <Overview goAnalyze={() => setActive('Analyze')} user={user} />
@@ -949,7 +989,7 @@ export default function SyntaxHubApp() {
       <Topbar active={active} onCommand={() => setCommand(true)} onMenu={() => setSidebar(true)} user={user} />
       {page}
     </div>
-    {chat && <div className="chat-drawer"><Chat onClose={() => setChat(false)} /></div>}
+    {chat && <div className="chat-drawer"><Chat onClose={() => setChat(false)} user={user} /></div>}
     {command && <CommandPalette close={() => setCommand(false)} go={setActive} />}
   </div>
 }

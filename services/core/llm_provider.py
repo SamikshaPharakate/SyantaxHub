@@ -12,8 +12,8 @@ class LLMProvider:
         self.openai_key = settings.openai_api_key
 
     def generate_response(self, prompt: str, system_instruction: str = "") -> str:
-        # 1. OpenRouter Integration (Primary)
-        if self.openrouter_key:
+        # 1. OpenRouter Integration (Primary if real key provided)
+        if self.openrouter_key and "your_openrouter" not in self.openrouter_key:
             try:
                 headers = {
                     "Authorization": f"Bearer {self.openrouter_key}",
@@ -50,7 +50,7 @@ class LLMProvider:
                 logger.warning(f"OpenRouter request failed: {e}")
 
         # 2. Google Gemini Fallback
-        if self.gemini_key:
+        if self.gemini_key and "your_gemini" not in self.gemini_key:
             try:
                 import google.generativeai as genai
                 genai.configure(api_key=self.gemini_key)
@@ -62,7 +62,7 @@ class LLMProvider:
                 logger.warning(f"Gemini API invocation failed: {e}")
 
         # 3. OpenAI Direct Fallback
-        if self.openai_key:
+        if self.openai_key and "your_openai" not in self.openai_key:
             try:
                 from openai import OpenAI
                 client = OpenAI(api_key=self.openai_key)
@@ -78,8 +78,39 @@ class LLMProvider:
             except Exception as e:
                 logger.warning(f"OpenAI API invocation failed: {e}")
 
-        # 4. Fallback Synthesizer — performs RAG synthesis / static analysis when external LLM API is offline
+        # 4. Live Free AI Chatbot Model (Zero API Key required, dynamic real-time completions)
+        try:
+            free_ai = self._call_free_llm(prompt, system_instruction)
+            if free_ai:
+                return free_ai
+        except Exception as e:
+            logger.warning(f"Free LLM API invocation failed: {e}")
+
+        # 5. Fallback Synthesizer — performs RAG synthesis / static analysis when external LLM API is offline
         return self._static_analysis_fallback(prompt)
+
+    def _call_free_llm(self, prompt: str, system_instruction: str = "") -> str:
+        """
+        Calls high-speed free AI model API (Pollinations anonymous reasoning LLM).
+        Provides real dynamic responses for any user question or code refactoring task.
+        """
+        messages = []
+        sys_prompt = system_instruction or "You are SyntaxHub AI Assistant, an expert programming assistant specializing in Java 21, React 19, JavaScript ES2024, and Python 3.13. Answer questions clearly, accurately, with practical code examples formatted in markdown."
+        messages.append({"role": "system", "content": sys_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        payload = {
+            "messages": messages,
+            "model": "openai"
+        }
+
+        with httpx.Client(timeout=25.0) as client:
+            resp = client.post("https://text.pollinations.ai/", json=payload)
+            if resp.status_code == 200 and resp.text:
+                text = resp.text.strip()
+                if text and not text.startswith('{"error"') and len(text) > 20:
+                    return text
+        return ""
 
     def _static_analysis_fallback(self, prompt: str) -> str:
         """
