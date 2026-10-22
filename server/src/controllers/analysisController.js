@@ -11,7 +11,7 @@ exports.createAnalysis = async (req, res, next) => {
       version: version || 'latest',
       code,
       result,
-      status: status || 'outdated',
+      status: status || 'current',
       isSaved: isSaved || false,
       user: req.user ? req.user.id : undefined,
     });

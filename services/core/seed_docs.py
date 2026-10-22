@@ -135,6 +135,17 @@ Immutable array methods that return a new array copy without mutating the origin
 const numbers = [3, 1, 4, 1, 5];
 const sorted = numbers.toSorted(); // Original `numbers` remains untouched
 ```
+
+## String Methods: Deprecated substr() vs Modern slice()
+`String.prototype.substr()` is legacy Annex B syntax deprecated in modern ECMAScript standards.
+In modern JavaScript (ES6+ / ES2024), use standard `String.prototype.slice()` or `String.prototype.substring()`.
+```javascript
+// OUTDATED:
+const part = text.substr(0, 5);
+
+// MODERN & CURRENT:
+const part = text.slice(0, 5);
+```
 """
     },
     {

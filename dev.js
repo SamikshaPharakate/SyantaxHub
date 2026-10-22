@@ -6,11 +6,14 @@ console.log('\x1b[36m%s\x1b[0m', '==============================================
 console.log('\x1b[36m%s\x1b[0m', '   Starting SyntaxHub Full-Stack Environment...   ');
 console.log('\x1b[36m%s\x1b[0m', '==================================================');
 
+const fs = require('fs');
+
 const isWin = os.platform() === 'win32';
 const npmCmd = isWin ? 'npm.cmd' : 'npm';
-const pythonCmd = isWin
+const venvPython = isWin
   ? path.join(__dirname, 'services', '.venv', 'Scripts', 'python.exe')
   : path.join(__dirname, 'services', '.venv', 'bin', 'python');
+const pythonCmd = fs.existsSync(venvPython) ? venvPython : 'python';
 
 function runProcess(name, command, args, cwd, colorCode) {
   const proc = spawn(command, args, {

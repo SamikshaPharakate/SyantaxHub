@@ -10,6 +10,9 @@
     "dev:services": "cd services && (.venv\\Scripts\\python main.py || .venv/bin/python main.py || python main.py)",
     "build:client": "npm --prefix client run build",
     "seed": "npm --prefix server run seed",
+    "test": "node server/tests/analysis.test.js && cd services && (.venv\\Scripts\\python -m unittest discover tests || python -m unittest discover tests)",
+    "test:server": "node server/tests/analysis.test.js",
+    "test:services": "cd services && (.venv\\Scripts\\python -m unittest discover tests || python -m unittest discover tests)",
     "install:all": "npm --prefix client install && npm --prefix server install && cd services && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt",
     "docker:up": "docker-compose up --build",
     "docker:down": "docker-compose down"

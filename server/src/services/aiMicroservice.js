@@ -54,25 +54,46 @@ module.exports = {
       }
 
       // React checks
-      if (tech.includes('react') || code.includes('react') || code.includes('component')) {
+      if (tech.includes('react') || code.includes('react') || code.includes('component') || tech.includes('next')) {
         if (/component(didmount|willmount|didupdate|willreceiveprops)/.test(code)) {
           issues.push("- **Deprecated Lifecycle Methods**: Detected legacy lifecycle methods (`componentDidMount`, etc.). In modern React, functional components with hooks or Server Components are standard.");
         }
         if (code.includes('class ') && code.includes('extends') && code.includes('component')) {
           issues.push("- **Class Component Pattern**: Legacy class component detected. Migrate to functional components with modern React hooks.");
         }
-        if (code.includes('useeffect') && (code.includes('fetch(') || code.includes('axios'))) {
+        if (code.includes('createref(')) {
+          issues.push("- **Legacy Ref API**: `createRef` detected in component body. Prefer `useRef` hook in functional components.");
+        }
+        if (code.includes('forwardref') && ((analysisData.version || '').includes('19') || !analysisData.version || (analysisData.version || '').includes('latest'))) {
+          warnings.push("- **`forwardRef` Deprecation**: In React 19, `forwardRef` is deprecated. Pass `ref` directly as a standard component prop.");
+        }
+        if (code.includes('useeffect') && (code.includes('fetch(') || code.includes('axios') || code.includes('.then('))) {
           warnings.push("- **Client-side Fetch Waterfall**: Data fetching in `useEffect` is discouraged in React 19. Consider Server Components or the `use()` hook.");
+        }
+        if (code.includes('usestate') || code.includes('usememo') || code.includes('usecallback') || code.includes('useref') || /function\s+[A-Z]/.test(analysisData.code || '') || /const\s+[A-Z]/.test(analysisData.code || '')) {
+          positive.push("- Uses modern React functional component architecture.");
         }
       }
 
       // JavaScript checks
-      if (tech.includes('javascript') || tech.includes('js')) {
+      if (tech.includes('javascript') || tech.includes('js') || tech.includes('node')) {
+        if (/\.substr\s*\(/.test(code)) {
+          issues.push("- **Deprecated `String.prototype.substr()`**: `substr()` is legacy Annex B syntax deprecated in modern ECMAScript standards. Replace with standard `.slice(start, end)` or `.substring(start, end)`.");
+        }
         if (/\bvar\s+/.test(code)) {
           issues.push("- **Legacy `var` Declaration**: `var` keyword detected. Replace with block-scoped `const` or `let`.");
         }
-        if (code.includes('reduce(') && (code.includes('category') || code.includes('group'))) {
+        if (code.includes('eval(')) {
+          issues.push("- **Security Vulnerability**: `eval()` detected. Avoid dynamic code execution.");
+        }
+        if (code.includes('reduce(') && (code.includes('category') || code.includes('group') || code.includes('type'))) {
           warnings.push("- **Manual Object Grouping**: Manual `.reduce()` grouping pattern detected. In ECMAScript 2024, use native `Object.groupBy(items, callback)`.");
+        }
+        if (/\.slice\s*\(/.test(code)) {
+          positive.push("- Uses modern standard `.slice()` method for string/array extraction.");
+        }
+        if (/\bconst\s+/.test(code) || /\blet\s+/.test(code)) {
+          positive.push("- Uses modern block-scoped variable declarations (`const`/`let`).");
         }
       }
 
@@ -81,13 +102,26 @@ module.exports = {
         if (/print\s+[^(]/.test(code)) {
           issues.push("- **Python 2 Print Syntax**: Python 2 style `print` statement detected. Replace with `print()` function.");
         }
+        if (code.includes('except:')) {
+          issues.push("- **Bare `except:` Clause**: Catches all exceptions including SystemExit. Specify `except Exception:`.");
+        }
         if (code.includes('typevar(') || code.includes('from typing import list')) {
           warnings.push("- **Legacy Generics Syntax**: `TypeVar` detected. In Python 3.12+ (PEP 695), use native generic type parameters: `def func[T](items: list[T]) -> T:`.");
         }
       }
 
-      const status = issues.length > 0 ? 'outdated' : warnings.length > 0 ? 'warning' : 'current';
-      let statusTag = status === 'outdated' ? 'STATUS: OUTDATED' : status === 'warning' ? 'STATUS: WARNING' : 'STATUS: CURRENT';
+      const isBlankOrTooShort = !code || code.trim().length < 5;
+      const status = isBlankOrTooShort
+        ? 'uncertain'
+        : issues.length > 0
+          ? 'outdated'
+          : warnings.length > 0
+            ? 'warning'
+            : (positive.length > 0 || !tech)
+              ? 'current'
+              : 'uncertain';
+
+      let statusTag = status === 'outdated' ? 'STATUS: OUTDATED' : status === 'warning' ? 'STATUS: WARNING' : status === 'uncertain' ? 'STATUS: UNCERTAIN' : 'STATUS: CURRENT';
 
       let analysisReport = `${statusTag}\n\n`;
       analysisReport += `### Executive Summary\n`;
@@ -100,6 +134,8 @@ module.exports = {
       } else if (status === 'warning') {
         analysisReport += `**Overall Code Health: Good with Optimization Opportunities.**\nNewer official features provide cleaner, faster alternatives.\n\n`;
         analysisReport += `### Optimization Suggestions\n${warnings.join('\n')}\n`;
+      } else if (status === 'uncertain') {
+        analysisReport += `**Status: Uncertain / Insufficient Syntax Evidence.**\nNo known deprecated or modern patterns could be verified for the specified snippet.\n\n`;
       } else {
         analysisReport += `**Overall Code Health: Current & Compliant.**\nNo deprecated patterns detected. All syntax adheres to modern recommendations.\n\n`;
       }

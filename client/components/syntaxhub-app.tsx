@@ -157,7 +157,7 @@ function Header({ eyebrow, title, description, action }: { eyebrow: string; titl
 
 function Overview({ goAnalyze, user }: { goAnalyze: () => void; user: any }) {
   return <div className="page-content">
-    <Header eyebrow="SYNTAXHUB WORKSPACE" title={`Good morning, ${user?.name ? user.name.split(' ')[0] : 'Jordan'}`} description="Analyze your code against modern official documentation standards for Java, React, JS, and Python." action={<button className="primary-button" onClick={goAnalyze}><Plus size={16} /> New analysis</button>} />
+    <Header eyebrow="SYNTAXHUB WORKSPACE" title={`Hello, ${user?.name ? user.name.split(' ')[0] : 'Jordan'}`} description="Analyze your code against modern official documentation standards for Java, React, JS, and Python." action={<button className="primary-button" onClick={goAnalyze}><Plus size={16} /> New analysis</button>} />
     <div className="stat-grid">{[['24','Total analyses','+12% this month'],['61','Issues found','8 need attention'],['89%','Current APIs','+4.2% this month'],['17','Migration suggestions','Across 6 projects']].map(([n,l,s]) => <div className="stat" key={l}><span>{l}</span><strong>{n}</strong><small>{s}</small></div>)}</div>
     <div className="content-card">
       <div className="card-heading"><div><h2>Recent analyses</h2><p>Your latest code reviews against OpenRouter LLM + Vector DB.</p></div><button className="ghost-button" onClick={goAnalyze}>View all <ArrowRight size={14} /></button></div>
@@ -223,16 +223,21 @@ function Analyze({ onChat }: { onChat: () => void }) {
       // Infer status reliably from response analysis text if status wasn't explicitly populated
       if (!outputResult.status && typeof outputResult.analysis === 'string') {
         const text = outputResult.analysis.toLowerCase()
-        if (text.includes('status: outdated') || text.includes('outdated or legacy patterns') || text.includes('deprecated wrapper constructor') || text.includes('legacy os thread pool')) {
+        const hasExplicitOutdated = text.includes('status: outdated') || text.includes('status: deprecated') || ((text.includes('outdated or legacy patterns') || text.includes('deprecated wrapper constructor') || text.includes('legacy os thread pool')) && !text.includes('no outdated') && !text.includes('no deprecated') && !text.includes('not outdated'))
+        const hasExplicitWarning = text.includes('status: warning') || text.includes('optimization suggestions') || text.includes('optimization opportunities')
+        const hasExplicitCurrent = text.includes('status: current') || text.includes('current & compliant') || text.includes('no deprecated') || text.includes('all checks passed')
+        const hasExplicitUncertain = text.includes('status: uncertain') || text.includes('insufficient syntax')
+
+        if (hasExplicitOutdated) {
           outputResult.status = 'outdated'
-        } else if (text.includes('status: warning') || text.includes('optimization opportunities') || text.includes('warning')) {
+        } else if (hasExplicitWarning) {
           outputResult.status = 'warning'
-        } else if (text.includes('status: current') || text.includes('current & compliant')) {
+        } else if (hasExplicitCurrent) {
           outputResult.status = 'current'
-        } else if (text.includes('[ai service unavailable]')) {
-          outputResult.status = 'warning'
+        } else if (hasExplicitUncertain || text.includes('[ai service unavailable]')) {
+          outputResult.status = 'uncertain'
         } else {
-          outputResult.status = 'outdated'
+          outputResult.status = 'current'
         }
       }
 
@@ -246,7 +251,7 @@ function Analyze({ onChat }: { onChat: () => void }) {
         version: selected.version,
         code: codeVal,
         result: outputResult,
-        status: outputResult?.status || 'outdated',
+        status: outputResult?.status || 'current',
         isSaved: savedState
       }, token).catch(err => console.warn('MongoDB save warning', err.message))
 
@@ -666,7 +671,7 @@ function ListPage({ kind, goAnalyze }: { kind: 'Saved Analyses' | 'History'; goA
             <div className="library-icon">{kind === 'History' ? <History size={17} /> : <Star size={17} />}</div>
             <div className="library-copy">
               <strong>{item.title || `${item.technology} Analysis`}</strong>
-              <small>{item.technology} v{item.version} · <StatusBadge status={item.status || 'outdated'} /></small>
+              <small>{item.technology} v{item.version} · <StatusBadge status={item.status || 'current'} /></small>
             </div>
             <span className="muted">{new Date(item.createdAt).toLocaleDateString()}</span>
             <Eye size={15} className="muted" />

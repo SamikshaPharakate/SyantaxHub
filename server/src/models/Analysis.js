@@ -31,8 +31,8 @@ const AnalysisSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['current', 'outdated', 'deprecated'],
-      default: 'outdated',
+      enum: ['current', 'outdated', 'deprecated', 'warning', 'uncertain'],
+      default: 'current',
     },
     isSaved: {
       type: Boolean,

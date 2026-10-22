@@ -171,107 +171,176 @@ class LLMProvider:
             response_lines.append("\n*(Powered by ChromaDB Vector Database & OpenRouter / Static Synthesis)*")
             return "\n".join(response_lines)
 
+        import re
+
+        # Extract Code to Analyze and metadata from prompt
+        code_part = ""
+        tech = ""
+        lang = ""
+        ver = ""
+
+        meta_match = re.search(r'Analyze the following\s+([a-zA-Z0-9_\-\.\s]+?)\s+code snippet against modern official documentation standards for\s+([a-zA-Z0-9_\-\.\s]+?)\s+\(v([a-zA-Z0-9_\-\.]+)\)', prompt)
+        if meta_match:
+            lang = meta_match.group(1).strip().lower()
+            tech = meta_match.group(2).strip().lower()
+            ver = meta_match.group(3).strip().lower()
+
+        if "CODE TO ANALYZE:" in prompt:
+            parts = prompt.split("CODE TO ANALYZE:")
+            if len(parts) > 1:
+                after_code = parts[1]
+                if "OFFICIAL DOCUMENTATION CONTEXT" in after_code:
+                    code_block = after_code.split("OFFICIAL DOCUMENTATION CONTEXT")[0].strip()
+                elif "INSTRUCTIONS:" in after_code:
+                    code_block = after_code.split("INSTRUCTIONS:")[0].strip()
+                else:
+                    code_block = after_code.strip()
+
+                lines = code_block.splitlines()
+                if lines and lines[0].strip().startswith("```"):
+                    lines = lines[1:]
+                if lines and lines[-1].strip().startswith("```"):
+                    lines = lines[:-1]
+                code_part = "\n".join(lines).strip()
+        else:
+            code_part = prompt.strip()
+
+        if not code_part.strip():
+            return (
+                "STATUS: UNCERTAIN\n\n"
+                "### Executive Summary\n"
+                "Insufficient code provided to evaluate compliance or detect deprecated patterns.\n\n"
+                "### Recommendations\n"
+                "- Please provide complete code for analysis.\n"
+            )
+
+        code_lower = code_part.lower()
+        if not tech:
+            if "react" in prompt_lower or "react" in lang:
+                tech = "react"
+            elif "java" in prompt_lower or "java" in lang:
+                tech = "java"
+            elif "javascript" in prompt_lower or "js" in prompt_lower or "js" in lang:
+                tech = "javascript"
+            elif "python" in prompt_lower or "py" in prompt_lower or "py" in lang:
+                tech = "python"
+
         issues = []
         warnings = []
         positive = []
 
         # --- React patterns ---
-        if "react" in prompt_lower:
-            if "componentdidmount" in prompt_lower or "componentwillmount" in prompt_lower or "componentdidupdate" in prompt_lower or "componentwillreceiveprops" in prompt_lower:
+        if "react" in tech or "react" in lang or "component" in code_lower or "jsx" in lang:
+            if re.search(r'\bcomponent(didmount|willmount|didupdate|willreceiveprops)\b', code_lower):
                 issues.append("- **Deprecated Lifecycle Methods**: Detected legacy lifecycle methods (`componentDidMount`, `componentWillMount`). In modern React, functional components with hooks or Server Components are standard.")
-            if "class " in prompt_lower and "extends " in prompt_lower and ("component" in prompt_lower or "react.component" in prompt_lower):
+            if "class " in code_lower and "extends " in code_lower and ("component" in code_lower or "react.component" in code_lower):
                 issues.append("- **Class Component Pattern**: Legacy class component detected. Migrate to functional components with modern React hooks.")
-            if "createref" in prompt_lower:
+            if "createref(" in code_lower:
                 issues.append("- **Legacy Ref API**: `createRef` detected in component body. Prefer `useRef` hook in functional components.")
-            if "useeffect" in prompt_lower and any(kw in prompt_lower for kw in ["fetch(", "fetchuser", "axios", ".then(", "http"]):
-                warnings.append("- **Client-side Fetch Waterfall**: Data fetching in `useEffect` is discouraged in React 19. Consider React 19 Server Components, Suspense boundaries, or the `use()` hook.")
-            if "usestate" in prompt_lower:
+            if "forwardref(" in code_lower and ("19" in ver or not ver or "latest" in ver):
+                warnings.append("- **`forwardRef` Deprecation**: In React 19, `forwardRef` is deprecated. Pass `ref` directly as a standard component prop.")
+            if "useeffect" in code_lower and any(kw in code_lower for kw in ["fetch(", "axios", ".then("]):
+                warnings.append("- **Client-side Fetch Waterfall**: Data fetching in `useEffect` is discouraged in modern React (React 19). Consider React 19 Server Components, Suspense boundaries, or the `use()` hook.")
+            if "usestate" in code_lower:
                 positive.append("- Uses standard React `useState` hook for declarative state management.")
-            if "useeffect" in prompt_lower:
+            if "useeffect" in code_lower:
                 positive.append("- Uses React `useEffect` for lifecycle synchronization.")
-            if "usememo" in prompt_lower or "usecallback" in prompt_lower:
+            if "usememo" in code_lower or "usecallback" in code_lower:
                 positive.append("- Uses memoization hooks (`useMemo` / `useCallback`) for performance optimization.")
-            if "useref" in prompt_lower:
+            if "useref" in code_lower:
                 positive.append("- Uses `useRef` for DOM references and mutable instance values.")
-            if "export function" in prompt_lower or "function " in prompt_lower or "const " in prompt_lower:
-                positive.append("- Uses modern functional component architecture.")
+            if re.search(r'\b(export\s+)?(default\s+)?(async\s+)?function\b', code_part) or "const " in code_part:
+                positive.append("- Modern functional component architecture.")
 
         # --- Java patterns ---
-        if "java" in prompt_lower:
-            if "new integer(" in prompt_lower or "new double(" in prompt_lower or "new long(" in prompt_lower or "new float(" in prompt_lower or "new boolean(" in prompt_lower or "new byte(" in prompt_lower or "new short(" in prompt_lower or "new character(" in prompt_lower:
+        if "java" in tech or "java" in lang:
+            if re.search(r'new\s+(Integer|Double|Long|Float|Boolean|Byte|Short|Character)\s*\(', code_part):
                 issues.append("- **Deprecated Wrapper Constructor**: Primitive wrapper constructors like `new Integer(...)` or `new Double(...)` are deprecated since Java 9 and marked for removal. Use auto-boxing (e.g. `Integer number = 100;`) or `Integer.valueOf(100)`.")
-            if "newfixedthreadpool" in prompt_lower or "newcachedthreadpool" in prompt_lower:
+            if "newfixedthreadpool" in code_lower or "newcachedthreadpool" in code_lower:
                 issues.append("- **Legacy OS Thread Pool**: Detected fixed/cached OS thread pool (`Executors.newFixedThreadPool`). In Java 21+, migrate to lightweight Virtual Threads with `Executors.newVirtualThreadPerTaskExecutor()` for orders-of-magnitude higher concurrency.")
-            if "vector" in prompt_lower or "hashtable" in prompt_lower:
+            if re.search(r'\b(Vector|Hashtable)\b', code_part):
                 issues.append("- **Legacy Collections**: `Vector` / `Hashtable` detected. Migrate to `ArrayList`, `ConcurrentHashMap`, or modern immutable collections (`List.of`, `Map.of`).")
-            if "new arraylist<" in prompt_lower and not "new arraylist<>()" in prompt_lower and not "new arraylist<>" in prompt_lower:
+            if re.search(r'new\s+ArrayList<[A-Za-z0-9_]+>\s*\(', code_part):
                 warnings.append("- **Redundant Type Arguments**: Explicit type arguments on collection instantiation (e.g., `new ArrayList<String>()`) are outdated. Use the diamond operator `<>` (Java 7+) or `List.of(...)` (Java 9+).")
-            if "for (int " in prompt_lower and (".size()" in prompt_lower or "< names.size()" in prompt_lower or "< list.size()" in prompt_lower):
+            if re.search(r'for\s*\(\s*int\s+i\s*=\s*0.*\.size\(\)', code_part):
                 warnings.append("- **Legacy Indexed For-Loop**: Traditional indexed loops over collections (`for (int i = 0; i < collection.size(); i++)`) are legacy patterns. In modern Java, prefer enhanced for-each loops (`for (String item : items)`) or `collection.forEach(System.out::println)`.")
-            if ".add(" in prompt_lower and prompt_lower.count(".add(") >= 2 and ("list" in prompt_lower or "names" in prompt_lower):
+            if ".add(" in code_lower and code_lower.count(".add(") >= 2 and ("list" in code_lower or "names" in code_lower):
                 warnings.append("- **Imperative Collection Instantiation**: Successive `.add()` calls to populate constant lists can be replaced in modern Java (9+) with concise immutable factories like `List.of(...)`.")
-            if "synchronized" in prompt_lower:
+            if "synchronized" in code_lower:
                 warnings.append("- **`synchronized` Block**: Heavyweight synchronized lock detected. In Java 21 Virtual Threads, prefer `ReentrantLock` to avoid thread pinning.")
-            if "virtualthread" in prompt_lower:
+            if "virtualthread" in code_lower:
                 positive.append("- Uses Java 21 Virtual Threads for high-throughput concurrency.")
-            if "var " in prompt_lower:
+            if re.search(r'\bvar\s+', code_part):
                 positive.append("- Uses local variable type inference (`var`, Java 10+).")
-            if "record " in prompt_lower:
+            if re.search(r'\brecord\s+', code_part):
                 positive.append("- Uses immutable `record` classes (Java 16+).")
-            if "list.of(" in prompt_lower or "map.of(" in prompt_lower or "set.of(" in prompt_lower:
+            if "list.of(" in code_lower or "map.of(" in code_lower or "set.of(" in code_lower:
                 positive.append("- Uses modern Java 9+ immutable collection factories (`List.of`, `Map.of`).")
-            if "stream()" in prompt_lower or ".stream()" in prompt_lower:
+            if "stream()" in code_lower or ".stream()" in code_lower:
                 positive.append("- Uses functional Stream API.")
-            if "public class" in prompt_lower or "class " in prompt_lower:
+            if "public class" in code_part or "class " in code_part:
                 positive.append("- Well-structured Java class definition.")
 
         # --- JavaScript / Node.js patterns ---
-        if "javascript" in prompt_lower or "js" in prompt_lower or "express" in prompt_lower:
-            if "var " in prompt_lower:
+        if "javascript" in tech or "js" in tech or "express" in tech or "javascript" in lang or "js" in lang or "node" in tech:
+            if re.search(r'\.substr\s*\(', code_part):
+                issues.append("- **Deprecated `String.prototype.substr()`**: `substr()` is legacy Annex B syntax deprecated in modern ECMAScript standards. Replace with standard `.slice(start, end)` or `.substring(start, end)`.")
+            if re.search(r'\bvar\s+[a-zA-Z0-9_$]+', code_part):
                 issues.append("- **Legacy `var` Declaration**: `var` keyword detected. Replace with block-scoped `const` (for constants) or `let` (for reassignables) introduced in ES6.")
-            if "eval(" in prompt_lower:
+            if re.search(r'\beval\s*\(', code_part):
                 issues.append("- **Security Vulnerability**: `eval()` detected. Avoid dynamic code execution due to arbitrary code injection risks.")
-            if "reduce(" in prompt_lower and ("category" in prompt_lower or "group" in prompt_lower):
+            if re.search(r'\.reduce\s*\(', code_part) and any(k in code_lower for k in ["category", "group", "type"]):
                 warnings.append("- **Manual Object Grouping**: Manual `.reduce()` grouping pattern detected. In ECMAScript 2024, use native `Object.groupBy(iterable, callback)` for cleaner, faster grouping.")
-            if ".then(" in prompt_lower and "async" not in prompt_lower and "fetchuser" not in prompt_lower:
+            if ".then(" in code_lower and "async" not in code_lower and "fetchuser" not in code_lower:
                 warnings.append("- **Promise Chaining**: `.then()` chains detected without `async/await`. Consider refactoring to `async/await` for better readability and structured error handling.")
-            if "express.router" in prompt_lower or "router." in prompt_lower or "router =" in prompt_lower:
+            if re.search(r'\.slice\s*\(', code_part):
+                positive.append("- Uses modern standard `.slice()` method for substring/array extraction.")
+            if "express.router" in code_lower or "router." in code_lower or "router =" in code_lower:
                 positive.append("- Uses modern Express Router modular route composition.")
-            if "router.route(" in prompt_lower:
-                positive.append("- Uses Express chained route definitions (`router.route().get().post()`).")
-            if "const " in prompt_lower:
+            if re.search(r'\bconst\s+', code_part):
                 positive.append("- Uses modern immutable variable declarations (`const`).")
-            if "let " in prompt_lower:
+            if re.search(r'\blet\s+', code_part):
                 positive.append("- Uses modern block-scoped mutable declarations (`let`).")
-            if "=>" in prompt_lower:
+            if "=>" in code_part:
                 positive.append("- Uses ES6 arrow function syntax.")
-            if "async " in prompt_lower or "await " in prompt_lower:
+            if "async " in code_part or "await " in code_part:
                 positive.append("- Employs modern `async/await` asynchronous flow.")
-            if "require(" in prompt_lower:
+            if "require(" in code_part:
                 positive.append("- Uses standard Node.js CommonJS module resolution.")
-            if "import " in prompt_lower or "export " in prompt_lower:
+            if "import " in code_part or "export " in code_part:
                 positive.append("- Uses ECMAScript standard ES Modules (`import/export`).")
 
         # --- Python patterns ---
-        if "python" in prompt_lower:
-            if "print " in prompt_lower and "print(" not in prompt_lower:
+        if "python" in tech or "py" in tech or "python" in lang or "py" in lang:
+            if re.search(r'^\s*print\s+[^(]', code_part, re.MULTILINE):
                 issues.append("- **Python 2 Syntax**: Python 2 style `print` statement detected. Replace with `print()` function.")
-            if "except:" in prompt_lower and "except " not in prompt_lower:
+            if re.search(r'except\s*:', code_part):
                 issues.append("- **Bare `except:` Clause**: Catches all exceptions including SystemExit and KeyboardInterrupt. Specify `except Exception:` or exact error classes.")
-            if "typevar(" in prompt_lower or "from typing import typevar" in prompt_lower or "from typing import list" in prompt_lower:
+            if "typevar(" in code_lower or "from typing import typevar" in code_lower or "from typing import list" in code_lower:
                 warnings.append("- **Legacy Generics Syntax**: `TypeVar` / `typing.List` detected. In Python 3.12 & 3.13 (PEP 695), use native generic type parameters: `def func[T](items: list[T]) -> T:`.")
-            if "def [" in prompt_lower or "class [" in prompt_lower:
+            if re.search(r'(def|class)\s+[a-zA-Z0-9_]+\[', code_part):
                 positive.append("- Uses modern Python 3.12+ PEP 695 type parameter syntax.")
-            if "from typing import" in prompt_lower or "import " in prompt_lower:
+            if "from typing import" in code_part or "import " in code_part:
                 positive.append("- Includes modular type hints / library imports.")
-            if "f\"" in prompt_lower or "f'" in prompt_lower:
+            if re.search(r'\bf["\']', code_part):
                 positive.append("- Uses modern formatted string literals (f-strings).")
-            if "dataclass" in prompt_lower:
+            if "dataclass" in code_lower:
                 positive.append("- Uses `dataclass` decorator for clean data models.")
-            if "async def" in prompt_lower:
+            if "async def" in code_part:
                 positive.append("- Uses native Python `asyncio` asynchronous coroutines.")
-            if "def " in prompt_lower:
+            if "def " in code_part:
                 positive.append("- Clean standard Python function definition.")
+
+        if not issues and not warnings and not positive:
+            return (
+                "STATUS: UNCERTAIN\n\n"
+                "### Executive Summary\n"
+                "Code analysis processed via SyntaxHub Static Analysis Engine (ChromaDB RAG Grounded).\n"
+                "**Status: Uncertain / Insufficient Syntax Evidence.**\n"
+                "No known deprecated or modern patterns could be verified for the specified snippet.\n\n"
+                "### Recommendations\n"
+                "- Provide a more complete snippet with language-specific construct definitions to evaluate compliance.\n"
+            )
 
         # Determine explicit overall status
         if issues:

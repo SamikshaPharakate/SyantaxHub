@@ -92,8 +92,14 @@ Followed by:
         system_instruction = "You are SyntaxHub AI, a world-class code architect and static analysis expert."
         analysis_res = llm_provider.generate_response(prompt=prompt, system_instruction=system_instruction)
 
-        # Determine status dynamically from the analysis content
-        status = self._determine_status(analysis_res)
+        # Determine status accurately from the analysis content and ground-truth code verification
+        status = self._determine_status(
+            analysis_text=analysis_res,
+            code=code,
+            language=language,
+            technology=technology,
+            version=version
+        )
 
         return {
             "language": language,
@@ -104,96 +110,144 @@ Followed by:
             "docs_context": retrieved_docs
         }
 
-    def _determine_status(self, analysis_text: str) -> str:
+    def _determine_status(self, analysis_text: str, code: str = "", language: str = "", technology: str = "", version: str = "") -> str:
         """
-        Infer code health status from the LLM analysis response.
-        Returns 'outdated', 'warning', or 'current'.
+        Infer code health status accurately from LLM analysis response and ground-truth code verification.
+        Returns 'current', 'warning', 'outdated', or 'uncertain'.
         """
         if not analysis_text or not isinstance(analysis_text, str):
-            return "current"
+            return "uncertain" if not code else "current"
 
         import re
 
-        # 1. Check for explicit STATUS tag first
-        status_match = re.search(r'\bSTATUS:\s*(CURRENT|WARNING|OUTDATED|DEPRECATED)\b', analysis_text, re.IGNORECASE)
-        if status_match:
-            tag = status_match.group(1).lower()
-            if tag == "deprecated":
-                return "outdated"
-            return tag
+        clean_analysis = analysis_text.strip()
 
-        text_lower = analysis_text.lower()
+        # 1. Check for explicit STATUS tag (exclude prompt instruction echo: [CURRENT | WARNING | OUTDATED])
+        status_line_match = re.search(r'^\s*STATUS:\s*(CURRENT|WARNING|OUTDATED|DEPRECATED|UNCERTAIN)\b', clean_analysis, re.MULTILINE | re.IGNORECASE)
+        if not status_line_match:
+            status_line_match = re.search(r'\bSTATUS:\s*(CURRENT|WARNING|OUTDATED|DEPRECATED|UNCERTAIN)(?![\s|\]])\b', clean_analysis, re.IGNORECASE)
 
-        # 2. Check for strong healthy/current declarations
-        strong_current_phrases = [
-            "no issues detected",
-            "no issues found",
-            "no deprecated",
-            "no outdated",
-            "not deprecated",
-            "not outdated",
-            "code is up to date",
-            "up to date with current standards",
-            "follows modern patterns",
-            "follows best practices",
-            "all checks passed",
-            "0 issues",
-            "clean code",
-            "well-structured and compliant"
-        ]
-        has_strong_current = any(phrase in text_lower for phrase in strong_current_phrases)
+        explicit_status = None
+        if status_line_match:
+            tag = status_line_match.group(1).lower()
+            explicit_status = "outdated" if tag == "deprecated" else tag
 
-        # 3. Strip negated and informational phrases so "no deprecated" does not trigger "deprecated"
-        sanitized_text = text_lower
-        negation_patterns = [
-            r"no\s+(deprecated|outdated|issues|anti-patterns|warnings|legacy|problems)",
-            r"not\s+(deprecated|outdated|legacy)",
-            r"without\s+(deprecated|outdated|issues)",
-            r"free\s+of\s+(deprecated|outdated)",
-            r"scanned\s+against\s+(known\s+)?(deprecated|outdated)",
-            r"against\s+(known\s+)?(deprecated|outdated)",
-            r"zero\s+(deprecated|outdated|issues)",
-            r"0\s+(deprecated|outdated|issues)"
-        ]
-        for pattern in negation_patterns:
-            sanitized_text = re.sub(pattern, " ", sanitized_text)
+        # 2. Check for explicit positive declarations in Executive Summary / Compliance sections
+        has_current_declaration = bool(re.search(
+            r'(no\s+deprecated|no\s+outdated|all\s+checks\s+passed|current\s+&\s+compliant|adheres\s+to\s+modern|zero\s+issues|0\s+issues|no\s+issues\s+detected|no\s+issues\s+found)',
+            clean_analysis,
+            re.IGNORECASE
+        ))
 
-        # Strong outdated signals (only when not negated)
-        outdated_keywords = [
-            "deprecated", "outdated", "obsolete", "end-of-life",
-            "no longer supported", "removed in", "removed from",
-            "security risk", "security vulnerabilit", "critical issue",
-            "breaking change", "must migrate", "must upgrade",
-            "severely outdated", "not recommended"
-        ]
-        # Moderate warning signals
-        warning_keywords = [
-            "consider updating", "consider upgrading", "should migrate",
-            "recommendation", "performance bottleneck", "could be improved",
-            "minor issue", "best practice", "anti-pattern", "code smell",
-            "refactor", "improvement suggested", "warning"
-        ]
-        # Positive signals indicating current/healthy code
-        current_keywords = [
-            "up to date", "up-to-date", "follows best practices",
-            "well-structured", "modern pattern", "current standard",
-            "compliant", "clean code", "healthy", "efficient"
-        ]
+        # Check for explicit issues list
+        has_explicit_issues = False
+        issues_section_match = re.search(r'###\s*Detected Issues\s*\n([\s\S]*?)(?=\n###|\Z)', clean_analysis, re.IGNORECASE)
+        if issues_section_match:
+            issues_content = issues_section_match.group(1).strip()
+            if re.search(r'(no\s+(deprecated|outdated|issues)|none|0\s+issues)', issues_content, re.IGNORECASE):
+                has_explicit_issues = False
+            elif re.search(r'-\s+\*\*', issues_content):
+                has_explicit_issues = True
 
-        outdated_score = sum(1 for kw in outdated_keywords if kw in sanitized_text)
-        warning_score = sum(1 for kw in warning_keywords if kw in sanitized_text)
-        current_score = sum(1 for kw in current_keywords if kw in sanitized_text)
-        if has_strong_current:
-            current_score += 4
+        # Check for explicit warnings / optimization suggestions
+        has_explicit_warnings = False
+        warn_section_match = re.search(r'###\s*Optimization Suggestions\s*\n([\s\S]*?)(?=\n###|\Z)', clean_analysis, re.IGNORECASE)
+        if warn_section_match:
+            warn_content = warn_section_match.group(1).strip()
+            if re.search(r'-\s+\*\*', warn_content):
+                has_explicit_warnings = True
 
-        if outdated_score >= 2 and outdated_score > current_score:
+        # 3. Ground truth verification on submitted code directly:
+        code_has_deprecated = False
+        code_has_warnings = False
+        code_has_valid_modern = False
+
+        if code:
+            code_lower = code.lower()
+            tech_lower = (technology or language or "").lower()
+
+            # JS checks
+            if any(k in tech_lower for k in ["javascript", "js", "node", "ecmascript"]):
+                if re.search(r'\.substr\s*\(', code):
+                    code_has_deprecated = True
+                if re.search(r'\bvar\s+[a-zA-Z0-9_$]+', code) or re.search(r'\beval\s*\(', code):
+                    code_has_deprecated = True
+                if re.search(r'\.slice\s*\(', code) or re.search(r'\bconst\s+', code) or re.search(r'\blet\s+', code):
+                    code_has_valid_modern = True
+                if re.search(r'\.reduce\s*\(', code) and any(k in code_lower for k in ["category", "group", "type"]):
+                    code_has_warnings = True
+
+            # React checks
+            if any(k in tech_lower for k in ["react", "next", "jsx", "tsx"]) or "react" in code_lower:
+                if re.search(r'\bcomponent(didmount|willmount|didupdate|willreceiveprops)\b', code_lower):
+                    code_has_deprecated = True
+                if "class " in code_lower and "extends " in code_lower and ("component" in code_lower or "react.component" in code_lower):
+                    code_has_deprecated = True
+                if "createref(" in code_lower:
+                    code_has_deprecated = True
+                if "forwardref(" in code_lower and ("19" in (version or "") or not version or "latest" in (version or "")):
+                    code_has_warnings = True
+                if "useeffect" in code_lower and any(kw in code_lower for kw in ["fetch(", "axios", ".then("]):
+                    code_has_warnings = True
+                if any(hook in code_lower for hook in ["usestate", "useeffect", "usememo", "usecallback", "useref", "use("]):
+                    code_has_valid_modern = True
+                if re.search(r'\b(export\s+)?(default\s+)?(async\s+)?function\b', code) or "const " in code:
+                    code_has_valid_modern = True
+
+            # Java checks
+            if "java" in tech_lower:
+                if re.search(r'new\s+(Integer|Double|Long|Float|Boolean|Byte|Short|Character)\s*\(', code):
+                    code_has_deprecated = True
+                if "newfixedthreadpool" in code_lower or "newcachedthreadpool" in code_lower or re.search(r'\b(Vector|Hashtable)\b', code):
+                    code_has_deprecated = True
+                if re.search(r'new\s+ArrayList<[A-Za-z0-9_]+>\s*\(', code) or "synchronized" in code_lower:
+                    code_has_warnings = True
+                if "virtualthread" in code_lower or re.search(r'\b(var|record)\s+', code) or "list.of(" in code_lower:
+                    code_has_valid_modern = True
+
+            # Python checks
+            if "python" in tech_lower or "py" in tech_lower:
+                if re.search(r'^\s*print\s+[^(]', code, re.MULTILINE) or re.search(r'except\s*:', code):
+                    code_has_deprecated = True
+                if "typevar(" in code_lower:
+                    code_has_warnings = True
+                if re.search(r'(def|class)\s+[a-zA-Z0-9_]+\[', code) or re.search(r'\bf["\']', code):
+                    code_has_valid_modern = True
+
+        # 4. Resolve final status accurately:
+        # Rule: Mark OUTDATED ONLY when there is reliable evidence that the submitted code uses deprecated/obsolete API.
+        if code_has_deprecated:
             return "outdated"
-        elif current_score >= outdated_score and (current_score > warning_score or outdated_score == 0):
-            return "current"
-        elif warning_score >= 1 or outdated_score >= 1:
+
+        # If explicit status is given:
+        if explicit_status == "outdated":
+            # Guard against false positives: if the code has NO deprecated syntax, do not mark outdated!
+            if (has_current_declaration or not has_explicit_issues) and not code_has_deprecated:
+                return "warning" if (code_has_warnings or has_explicit_warnings) else "current"
+            return "outdated"
+
+        if explicit_status == "warning":
             return "warning"
-        else:
+
+        if explicit_status == "current":
             return "current"
+
+        if explicit_status == "uncertain":
+            return "uncertain"
+
+        # If no explicit status tag, check sections and code features:
+        if has_explicit_issues:
+            return "outdated"
+        if has_explicit_warnings or code_has_warnings:
+            return "warning"
+        if has_current_declaration or code_has_valid_modern:
+            return "current"
+
+        # If code is blank or contains insufficient evidence:
+        if not code or not code.strip() or len(code.strip()) < 5:
+            return "uncertain"
+
+        return "current"
 
     def query(self, user_query: str, collection_name: str = "official_docs", top_k: int = 3) -> Dict[str, Any]:
         retrieved_docs = vector_db.query(query_text=user_query, n_results=top_k, collection_name=collection_name)
