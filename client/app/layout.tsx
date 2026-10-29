@@ -3,16 +3,23 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'SyntaxHub — Version-aware code analysis',
-  description: 'Analyze code against version-specific framework documentation and migrate with confidence.',
+  title: 'SyntaxHub — Ship confidently. Stay current.',
+  description: 'AI-powered code analysis: Analyze your code against official documentation, detect outdated patterns, and get actionable refactoring suggestions.',
   generator: 'SyntaxHub',
 }
 
 export const viewport: Viewport = {
   colorScheme: 'dark',
-  themeColor: '#0b0d10',
+  themeColor: '#080914',
 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en" className="dark bg-background"><body className="antialiased">{children}{process.env.NODE_ENV === 'production' && <Analytics />}</body></html>
+  return (
+    <html lang="en" className="dark bg-background" suppressHydrationWarning>
+      <body className="antialiased" suppressHydrationWarning>
+        {children}
+        {process.env.NODE_ENV === 'production' && <Analytics />}
+      </body>
+    </html>
+  )
 }

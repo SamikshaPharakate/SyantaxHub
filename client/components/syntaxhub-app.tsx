@@ -5,7 +5,7 @@ import {
   Activity, ArrowRight, BookOpen, Bot, Check, ChevronDown, ChevronRight, CircleDot,
   Code2, Command, Copy, Eye, FileCode2, Folder, FolderPlus, History, LayoutDashboard,
   LogOut, Menu, Moon, MoreHorizontal, Play, Plus, RefreshCw, Search, Send, Settings, ShieldCheck,
-  Star, Tag, Terminal, Trash2, X, Zap,
+  Sparkles, Star, Tag, Terminal, Trash2, X, Zap,
 } from 'lucide-react'
 import { backendApi, aiServiceApi, Snippet, ProjectItem } from '@/lib/api'
 
@@ -326,11 +326,237 @@ function Analyze({ onChat }: { onChat: () => void }) {
 }
 
 function Landing({ enter }: { enter: (s: string) => void }) {
-  return <div className="landing">
-    <div className="landing-nav"><div className="brand"><div className="brand-mark"><Code2 size={17} /></div><span>SyntaxHub</span></div><div className="landing-links"><button onClick={() => enter('Documentation')}>Docs</button><button onClick={() => enter('Sign in')}>Sign in</button><button className="primary-button" onClick={() => enter('Register')}>Start free <ArrowRight size={14} /></button></div></div>
-    <div className="landing-hero"><div className="hero-copy"><span className="eyebrow">OPENROUTER LLM + CHROMADB RAG PLATFORM</span><h1>Ship confidently.<br /><span>Stay current.</span></h1><p>SyntaxHub reads your code against official Java, React, JavaScript, and Python documentation, detects outdated patterns, and provides vector-guided refactoring.</p><div className="hero-actions"><button className="primary-button" onClick={() => enter('Register')}>Create your workspace <ArrowRight size={15} /></button><button className="ghost-button" onClick={() => enter('Documentation')}>Explore Documentation RAG</button></div><div className="trust-row"><ShieldCheck size={15} /> OpenRouter Integrated <span /> ChromaDB Vector DB</div></div>
-    <div className="hero-terminal"><div className="terminal-top"><span className="terminal-dot" /><span className="terminal-dot" /><span className="terminal-dot" /><span className="mono">analysis / java-react-python-rag</span></div><div className="terminal-body"><div className="terminal-line muted">$ syntaxhub analyze --tech java --version 21</div><div className="terminal-line"><span className="success">✓</span> ChromaDB RAG docs loaded</div><div className="terminal-line"><span className="warning">!</span> Executed via OpenRouter Llama 3.3 70B</div><div className="terminal-card"><span className="status status-outdated">outdated</span><b>VirtualThreads</b><small>Migrate fixed OS thread pools to Virtual Thread Executors</small></div></div></div></div>
-  </div>
+  const scrollTo = (id: string) => {
+    if (typeof document !== 'undefined') {
+      const el = document.getElementById(id)
+      if (el) el.scrollIntoView({ behavior: 'smooth' })
+    }
+  }
+
+  return (
+    <div className="landing">
+      {/* NAVBAR */}
+      <header className="landing-nav-container">
+        <div className="landing-nav">
+          <div className="brand" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+            <div className="brand-mark"><Code2 size={18} /></div>
+            <span>SyntaxHub</span>
+          </div>
+
+          <nav className="landing-nav-center" aria-label="Main landing navigation">
+            <button type="button" className="landing-nav-link" onClick={() => scrollTo('features')}>Features</button>
+            <button type="button" className="landing-nav-link" onClick={() => scrollTo('how-it-works')}>How It Works</button>
+            <button type="button" className="landing-nav-link" onClick={() => enter('Documentation')}>Docs</button>
+          </nav>
+
+          <div className="landing-nav-right">
+            <button type="button" className="btn-sign-in" onClick={() => enter('Sign in')}>Sign In</button>
+            <button type="button" className="btn-start-free" onClick={() => enter('Register')}>
+              Start Free <ArrowRight size={14} />
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* HERO SECTION */}
+      <section className="landing-hero">
+        <div className="hero-copy">
+          <div className="hero-pill">
+            <Sparkles size={13} className="hero-pill-icon" />
+            <span>AI-Powered Code Analysis</span>
+          </div>
+
+          <h1 className="hero-title">
+            Ship confidently.<br />
+            <span className="hero-title-highlight">Stay current.</span>
+          </h1>
+
+          <p className="hero-description">
+            Analyze your code against official documentation, detect outdated patterns, and get actionable refactoring suggestions.
+          </p>
+
+          <div className="hero-actions">
+            <button type="button" className="hero-btn-primary" onClick={() => enter('Register')}>
+              Create Your Workspace <ArrowRight size={15} />
+            </button>
+            <button type="button" className="hero-btn-secondary" onClick={() => enter('Documentation')}>
+              Explore Documentation
+            </button>
+          </div>
+
+          <div className="hero-badges-wrapper">
+            <div className="hero-badge-group">
+              <span className="badge-chip"><Bot size={13} /> OpenRouter LLM</span>
+              <span className="badge-chip"><ShieldCheck size={13} /> ChromaDB Vector DB</span>
+            </div>
+            <div className="hero-languages">
+              <span className="lang-tag">Java 21</span>
+              <span className="lang-tag">React 19</span>
+              <span className="lang-tag">JS ES2024</span>
+              <span className="lang-tag">Python 3.13</span>
+            </div>
+          </div>
+        </div>
+
+        {/* HERO RIGHT: REALISTIC CODE ANALYSIS PREVIEW */}
+        <div className="analysis-preview-card">
+          <div className="preview-window-bar">
+            <div className="window-dots">
+              <span className="dot dot-red" />
+              <span className="dot dot-yellow" />
+              <span className="dot dot-green" />
+            </div>
+            <span className="preview-filename"><FileCode2 size={13} /> auth-validator.js</span>
+            <span className="preview-lang-pill">JavaScript · ES2024</span>
+          </div>
+
+          <div className="preview-editor-body">
+            <div className="preview-code-gutter" aria-hidden="true">
+              <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span>
+            </div>
+            <div className="preview-code-content">
+              <div className="code-line"><span className="token-kw">export function </span><span className="token-fn">sanitizeEmail</span>(email) &#123;</div>
+              <div className="code-line">&nbsp;&nbsp;<span className="token-kw">const </span>atIndex = email.<span className="token-fn">indexOf</span>(<span className="token-str">'@'</span>);</div>
+              <div className="code-line token-comment">&nbsp;&nbsp;// Extract domain using legacy method</div>
+              <div className="code-line code-line-warn">
+                &nbsp;&nbsp;<span className="token-kw">return </span>email.<span className="token-outdated">substr</span>(atIndex + <span className="token-num">1</span>);
+                <span className="inline-warn-indicator">⚠️ legacy</span>
+              </div>
+              <div className="code-line">&#125;</div>
+            </div>
+          </div>
+
+          <div className="preview-card-divider" />
+
+          <div className="preview-analysis-result">
+            <div className="preview-status-row">
+              <div className="preview-status-pill">
+                <span className="status-ping" />
+                <span>Outdated API Detected</span>
+              </div>
+              <span className="preview-rule-tag">ECMAScript Annex B</span>
+            </div>
+
+            <div className="preview-detail-box">
+              <div className="detail-row">
+                <span className="detail-label">Why it's outdated</span>
+                <p className="detail-text">
+                  <code>String.prototype.substr()</code> is obsolete Annex B syntax. Its length parameter contradicts standard substring/slice semantics, causing off-by-one errors.
+                </p>
+              </div>
+              <div className="detail-row replacement-row">
+                <span className="detail-label">Recommended modern replacement</span>
+                <div className="replacement-code-box">
+                  <span className="token-kw">return</span> email.<span className="token-fn-good">slice</span>(atIndex + <span className="token-num">1</span>);
+                </div>
+              </div>
+            </div>
+
+            <div className="preview-verification-footer">
+              <ShieldCheck size={14} className="verify-icon" />
+              <span>Official Docs Verified · MDN Web Docs · Indexed in ChromaDB</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* FEATURES SECTION */}
+      <section id="features" className="landing-section">
+        <div className="section-header">
+          <span className="section-eyebrow">KEY CAPABILITIES</span>
+          <h2 className="section-title">Built for Modern Engineering Standards</h2>
+          <p className="section-desc">Keep your repositories aligned with official language specifications, not outdated tutorials.</p>
+        </div>
+
+        <div className="features-grid">
+          <div className="feature-card">
+            <div className="feature-icon-wrapper"><BookOpen size={20} /></div>
+            <h3>Documentation-Grounded Analysis</h3>
+            <p>Answers and recommendations are anchored directly in official documentation vectors, eliminating outdated assumptions and LLM hallucinations.</p>
+            <span className="feature-tag">ChromaDB Vector Store</span>
+          </div>
+
+          <div className="feature-card">
+            <div className="feature-icon-wrapper"><Activity size={20} /></div>
+            <h3>Version-Aware Detection</h3>
+            <p>Identify deprecated APIs, obsolete lifecycle methods, legacy thread pool allocations, and old generic syntax across targeted runtime versions.</p>
+            <span className="feature-tag">Java 21 · React 19 · ES2024 · Py 3.13</span>
+          </div>
+
+          <div className="feature-card">
+            <div className="feature-icon-wrapper"><RefreshCw size={20} /></div>
+            <h3>Smart Refactoring Suggestions</h3>
+            <p>Receive drop-in code replacements with precise line numbers, rationale explanations, and step-by-step modernization paths.</p>
+            <span className="feature-tag">Instant Code Modernization</span>
+          </div>
+        </div>
+      </section>
+
+      {/* HOW IT WORKS SECTION */}
+      <section id="how-it-works" className="landing-section">
+        <div className="section-header">
+          <span className="section-eyebrow">SIMPLE WORKFLOW</span>
+          <h2 className="section-title">How SyntaxHub Works</h2>
+          <p className="section-desc">Three simple steps from outdated code to production-ready modern patterns.</p>
+        </div>
+
+        <div className="steps-grid">
+          <div className="step-card">
+            <span className="step-number">01</span>
+            <h4>Submit or Paste Code</h4>
+            <p>Paste snippets directly into the editor or pick from pre-packaged React 19, Java 21, JavaScript, or Python samples.</p>
+          </div>
+
+          <div className="step-card">
+            <span className="step-number">02</span>
+            <h4>RAG Vector Matching</h4>
+            <p>SyntaxHub queries official documentation embeddings in ChromaDB to verify current standards and deprecation notices.</p>
+          </div>
+
+          <div className="step-card">
+            <span className="step-number">03</span>
+            <h4>Refactor &amp; Ship</h4>
+            <p>Review flagged APIs, inspect suggested replacements, and copy updated modern syntax ready for your production build.</p>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA SECTION */}
+      <section className="landing-cta-section">
+        <div className="cta-card">
+          <h2>Ready to modernize your code?</h2>
+          <p>Join developers keeping their Java, React, JavaScript, and Python codebases compliant with official documentation standards.</p>
+          <div className="cta-actions">
+            <button type="button" className="hero-btn-primary" onClick={() => enter('Register')}>
+              Create Your Workspace <ArrowRight size={15} />
+            </button>
+            <button type="button" className="hero-btn-secondary" onClick={() => enter('Documentation')}>
+              Explore Documentation RAG
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* FOOTER */}
+      <footer className="landing-footer">
+        <div className="footer-content">
+          <div className="footer-brand">
+            <div className="brand-mark"><Code2 size={16} /></div>
+            <span>SyntaxHub</span>
+          </div>
+          <p className="footer-tagline">AI-powered code analysis and documentation modernization platform.</p>
+          <div className="footer-links">
+            <button type="button" onClick={() => enter('Documentation')}>Documentation</button>
+            <button type="button" onClick={() => enter('Sign in')}>Sign In</button>
+            <button type="button" onClick={() => enter('Register')}>Create Account</button>
+          </div>
+        </div>
+        <div className="footer-bottom">
+          <span>&copy; 2026 SyntaxHub. Built with Next.js, Express, ChromaDB &amp; OpenRouter.</span>
+        </div>
+      </footer>
+    </div>
+  )
 }
 
 function Auth({ mode, enter, setUser }: { mode: 'Sign in' | 'Register'; enter: (s: string, user?: any) => void; setUser: (u: any) => void }) {
