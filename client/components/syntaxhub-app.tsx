@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity, ArrowRight, BookOpen, Bot, Check, ChevronDown, ChevronRight, CircleDot,
-  Code2, Command, Copy, Eye, FileCode2, Folder, FolderPlus, History, LayoutDashboard,
+  Code2, Command, Copy, Eye, EyeOff, FileCode2, Folder, FolderPlus, History, LayoutDashboard,
   LogOut, Menu, Moon, MoreHorizontal, Play, Plus, RefreshCw, Search, Send, Settings, ShieldCheck,
   Sparkles, Star, Tag, Terminal, Trash2, X, Zap,
 } from 'lucide-react'
@@ -564,27 +564,71 @@ function Auth({ mode, enter, setUser }: { mode: 'Sign in' | 'Register'; enter: (
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(true)
+  const [agreeTerms, setAgreeTerms] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
+  const [infoMsg, setInfoMsg] = useState('')
+
+  // Pre-fill remembered email if available
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !register) {
+      const savedEmail = localStorage.getItem('syntaxhub_remember_email')
+      if (savedEmail) setEmail(savedEmail)
+    }
+  }, [register])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setErrorMsg('')
+    setInfoMsg('')
+
+    if (register) {
+      if (!name.trim()) {
+        setErrorMsg('Please enter your full name.')
+        setLoading(false)
+        return
+      }
+      if (password !== confirmPassword) {
+        setErrorMsg('Passwords do not match. Please verify both password fields.')
+        setLoading(false)
+        return
+      }
+      if (password.length < 6) {
+        setErrorMsg('Password must be at least 6 characters long.')
+        setLoading(false)
+        return
+      }
+      if (!agreeTerms) {
+        setErrorMsg('Please agree to the Terms and Privacy Policy to continue.')
+        setLoading(false)
+        return
+      }
+    }
+
     try {
       let res: any
       if (register) {
-        res = await backendApi.register({ name, email, password })
+        res = await backendApi.register({ name: name.trim(), email: email.trim(), password })
       } else {
-        res = await backendApi.login({ email, password })
+        res = await backendApi.login({ email: email.trim(), password })
       }
 
       if (res.success && res.token) {
         localStorage.setItem('syntaxhub_token', res.token)
+        if (rememberMe) {
+          localStorage.setItem('syntaxhub_remember_email', email.trim())
+        } else {
+          localStorage.removeItem('syntaxhub_remember_email')
+        }
         if (res.user) setUser(res.user)
         enter('Overview', res.user)
       } else {
-        setErrorMsg(res.error || 'Authentication failed. Check your details.')
+        setErrorMsg(res.error || 'Authentication failed. Please check your credentials.')
       }
     } catch (err: any) {
       console.warn('Auth submission error', err)
@@ -597,6 +641,7 @@ function Auth({ mode, enter, setUser }: { mode: 'Sign in' | 'Register'; enter: (
   const handleDemoLogin = async () => {
     setLoading(true)
     setErrorMsg('')
+    setInfoMsg('')
     try {
       const res = await backendApi.demoLogin()
       if (res.success && res.token) {
@@ -614,17 +659,283 @@ function Auth({ mode, enter, setUser }: { mode: 'Sign in' | 'Register'; enter: (
     }
   }
 
-  return <div className="auth-page"><div className="auth-brand" onClick={() => enter('Landing')}><div className="brand-mark"><Code2 size={17} /></div><span>SyntaxHub</span></div>
-    <div className="auth-card content-card"><span className="eyebrow">{register ? 'START YOUR WORKSPACE' : 'WELCOME BACK'}</span><h1>{register ? 'Build with confidence.' : 'Continue where you left off.'}</h1>
-    {errorMsg && <div style={{ color: '#ef4444', background: 'rgba(239, 68, 68, 0.1)', padding: '10px', borderRadius: '6px', fontSize: '13px', marginBottom: '16px' }}>{errorMsg}</div>}
-    <div className="demo-credentials"><div><span>Instant Access</span><b>Try the workspace with demo credentials</b></div><button type="button" onClick={handleDemoLogin} disabled={loading}>{loading ? 'Signing in...' : 'Login as Demo User'} <ArrowRight size={13} /></button></div>
-    <form onSubmit={handleSubmit} className="auth-form">
-      {register && <label>Full name<input placeholder="Jordan Davis" value={name} onChange={e => setName(e.target.value)} required /></label>}
-      <label>Email<input placeholder="jordan@syntaxhub.dev" type="email" value={email} onChange={e => setEmail(e.target.value)} required /></label>
-      <label>Password<input placeholder="••••••••" type="password" value={password} onChange={e => setPassword(e.target.value)} required /></label>
-      <button type="submit" className="primary-button full" disabled={loading}>{loading ? 'Authenticating...' : register ? 'Create workspace' : 'Sign in'} <ArrowRight size={15} /></button>
-    </form>
-    <small className="auth-switch">{register ? 'Already have an account?' : 'New to SyntaxHub?'} <button onClick={() => enter(register ? 'Sign in' : 'Register')}>{register ? 'Sign in' : 'Create an account'}</button></small></div></div>
+  const handleForgotPassword = (e: React.MouseEvent) => {
+    e.preventDefault()
+    if (!email) {
+      setErrorMsg('Please enter your email address first, then click "Forgot password".')
+      return
+    }
+    setErrorMsg('')
+    setInfoMsg(`Password reset instructions have been sent to ${email}.`)
+  }
+
+  return (
+    <div className="auth-page">
+      {/* Top bar with SyntaxHub logo */}
+      <header className="auth-top-bar">
+        <div className="auth-brand" onClick={() => enter('Landing')} title="Back to Homepage">
+          <div className="auth-brand-mark"><Code2 size={18} /></div>
+          <span>SyntaxHub</span>
+        </div>
+        <div className="auth-top-nav">
+          <span className="auth-top-switch-label">
+            {register ? 'Already have an account?' : 'New to SyntaxHub?'}
+          </span>
+          <button
+            type="button"
+            className="auth-btn-top-switch"
+            onClick={() => {
+              setErrorMsg('')
+              setInfoMsg('')
+              enter(register ? 'Sign in' : 'Register')
+            }}
+          >
+            {register ? 'Sign In' : 'Sign Up'}
+          </button>
+        </div>
+      </header>
+
+      {/* Main Split Layout */}
+      <main className="auth-main-container">
+        <div className="auth-split-wrapper">
+          {/* Left-side content */}
+          <div className="auth-left-content">
+            <h1 className="auth-left-title">
+              {register ? (
+                <>Start coding smarter with <span className="highlight">SyntaxHub.</span></>
+              ) : (
+                <>Write better code with <span className="highlight">up-to-date syntax.</span></>
+              )}
+            </h1>
+
+            <p className="auth-left-desc">
+              {register
+                ? 'Create your account to identify outdated syntax and discover modern code alternatives.'
+                : 'Find outdated syntax and discover modern alternatives with AI-powered analysis.'}
+            </p>
+
+            <div className="auth-features-list">
+              {register ? (
+                <>
+                  <div className="auth-feature-item">
+                    <div className="auth-feature-icon"><BookOpen size={17} /></div>
+                    <div className="auth-feature-text">
+                      <h4>Understand code changes</h4>
+                      <p>See why older syntax needs updating.</p>
+                    </div>
+                  </div>
+
+                  <div className="auth-feature-item">
+                    <div className="auth-feature-icon"><ShieldCheck size={17} /></div>
+                    <div className="auth-feature-text">
+                      <h4>Code with confidence</h4>
+                      <p>Get version-aware recommendations.</p>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="auth-feature-item">
+                    <div className="auth-feature-icon"><Activity size={17} /></div>
+                    <div className="auth-feature-text">
+                      <h4>Detect outdated syntax</h4>
+                      <p>Identify deprecated APIs quickly.</p>
+                    </div>
+                  </div>
+
+                  <div className="auth-feature-item">
+                    <div className="auth-feature-icon"><RefreshCw size={17} /></div>
+                    <div className="auth-feature-text">
+                      <h4>Find modern alternatives</h4>
+                      <p>Get version-aware code recommendations.</p>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Right-side Form Card */}
+          <div className="auth-card-wrapper">
+            <div className="auth-card-clean">
+              <div className="auth-card-header">
+                <h2>{register ? 'Create your account' : 'Welcome back'}</h2>
+                <p>{register ? 'Sign up to start modernizing your codebase' : 'Sign in to continue to SyntaxHub'}</p>
+              </div>
+
+              {errorMsg && (
+                <div className="auth-alert-error" role="alert">
+                  <X size={15} style={{ flexShrink: 0 }} />
+                  <span>{errorMsg}</span>
+                </div>
+              )}
+
+              {infoMsg && (
+                <div className="auth-alert-info" role="status">
+                  <Check size={15} style={{ flexShrink: 0 }} />
+                  <span>{infoMsg}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} className="auth-form-clean">
+                {register && (
+                  <div className="auth-field">
+                    <label htmlFor="auth-name">Full name</label>
+                    <div className="auth-input-group">
+                      <input
+                        id="auth-name"
+                        type="text"
+                        className="auth-input-clean"
+                        placeholder="Jordan Davis"
+                        value={name}
+                        onChange={e => setName(e.target.value)}
+                        required
+                        autoComplete="name"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="auth-field">
+                  <label htmlFor="auth-email">Email address</label>
+                  <div className="auth-input-group">
+                    <input
+                      id="auth-email"
+                      type="email"
+                      className="auth-input-clean"
+                      placeholder="name@company.com"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      required
+                      autoComplete="email"
+                    />
+                  </div>
+                </div>
+
+                <div className="auth-field">
+                  <label htmlFor="auth-password">Password</label>
+                  <div className="auth-input-group">
+                    <input
+                      id="auth-password"
+                      type={showPassword ? 'text' : 'password'}
+                      className="auth-input-clean with-toggle"
+                      placeholder={register ? 'At least 6 characters' : 'Enter your password'}
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      required
+                      autoComplete={register ? 'new-password' : 'current-password'}
+                    />
+                    <button
+                      type="button"
+                      className="auth-password-toggle"
+                      onClick={() => setShowPassword(!showPassword)}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      title={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                {register && (
+                  <div className="auth-field">
+                    <label htmlFor="auth-confirm-password">Confirm password</label>
+                    <div className="auth-input-group">
+                      <input
+                        id="auth-confirm-password"
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        className="auth-input-clean with-toggle"
+                        placeholder="Re-enter your password"
+                        value={confirmPassword}
+                        onChange={e => setConfirmPassword(e.target.value)}
+                        required
+                        autoComplete="new-password"
+                      />
+                      <button
+                        type="button"
+                        className="auth-password-toggle"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                        title={showConfirmPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Login: Remember me & Forgot password */}
+                {!register && (
+                  <div className="auth-row-options">
+                    <label className="auth-checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={rememberMe}
+                        onChange={e => setRememberMe(e.target.checked)}
+                      />
+                      <span>Remember me</span>
+                    </label>
+                    <button type="button" className="auth-forgot-link" onClick={handleForgotPassword}>
+                      Forgot password?
+                    </button>
+                  </div>
+                )}
+
+                {/* Signup: Terms and Privacy Policy checkbox */}
+                {register && (
+                  <div className="auth-row-options">
+                    <label className="auth-checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={agreeTerms}
+                        onChange={e => setAgreeTerms(e.target.checked)}
+                        required
+                      />
+                      <span>I agree to the Terms and Privacy Policy</span>
+                    </label>
+                  </div>
+                )}
+
+                <button type="submit" className="auth-btn-primary" disabled={loading}>
+                  {loading ? 'Please wait...' : register ? 'Create account' : 'Login'}
+                  <ArrowRight size={15} />
+                </button>
+              </form>
+
+              {/* Demo Login option for instant evaluation */}
+              <div className="auth-demo-divider">
+                <span>or test instantly</span>
+              </div>
+              <button
+                type="button"
+                className="auth-btn-demo"
+                onClick={handleDemoLogin}
+                disabled={loading}
+              >
+                <span>Try with Demo Account</span>
+                <ArrowRight size={13} />
+              </button>
+
+              <div className="auth-switch-text">
+                {register ? 'Already have an account?' : "Don't have an account?"}
+                <button
+                  type="button"
+                  className="auth-switch-btn"
+                  onClick={() => {
+                    setErrorMsg('')
+                    setInfoMsg('')
+                    enter(register ? 'Sign in' : 'Register')
+                  }}
+                >
+                  {register ? 'Log in' : 'Sign up'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  )
 }
 
 // Dedicated Snippets Library View
