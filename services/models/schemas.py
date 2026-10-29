@@ -29,7 +29,33 @@ class VectorSearchRequest(BaseModel):
     collection_name: Optional[str] = Field("official_docs", description="Chroma collection name")
     n_results: Optional[int] = Field(5, description="Number of results")
 
+class DocumentationSource(BaseModel):
+    title: str
+    url: Optional[str] = ""
+
+class OutdatedIssue(BaseModel):
+    api: str
+    line: Optional[int] = None
+    reason: str
+    version: str
+    documentation: Optional[DocumentationSource] = None
+    original_code: str
+    suggested_replacement: str
+    replacement_explanation: str
+    impact: str
+    migration_steps: List[str] = []
+
+class CodeAnalysisResult(BaseModel):
+    language: str
+    technology: str
+    version: str
+    status: str
+    issues: List[OutdatedIssue] = []
+    analysis: str
+    docs_context: List[Any] = []
+
 class AIResponse(BaseModel):
     success: bool
     data: Any
     message: Optional[str] = None
+

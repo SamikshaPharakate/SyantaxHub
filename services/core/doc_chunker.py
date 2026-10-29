@@ -6,7 +6,7 @@ class DocumentChunker:
         self.max_chunk_size = max_chunk_size
         self.overlap = overlap
 
-    def chunk_markdown(self, content: str, doc_title: str, tech: str, version: str) -> List[Dict[str, Any]]:
+    def chunk_markdown(self, content: str, doc_title: str, tech: str, version: str, url: str = "") -> List[Dict[str, Any]]:
         """
         Splits markdown & code docs intelligently by headings (#, ##, ###) and paragraph boundaries.
         """
@@ -31,7 +31,8 @@ class DocumentChunker:
                     "title": doc_title,
                     "section": section_title,
                     "technology": tech,
-                    "version": version
+                    "version": version,
+                    "url": url
                 })
                 chunk_id_counter += 1
             else:
@@ -50,7 +51,8 @@ class DocumentChunker:
                                 "title": doc_title,
                                 "section": section_title,
                                 "technology": tech,
-                                "version": version
+                                "version": version,
+                                "url": url
                             })
                             chunk_id_counter += 1
                         # Start new chunk with overlap
@@ -63,7 +65,8 @@ class DocumentChunker:
                         "title": doc_title,
                         "section": section_title,
                         "technology": tech,
-                        "version": version
+                        "version": version,
+                        "url": url
                     })
                     chunk_id_counter += 1
 

@@ -41,6 +41,15 @@ export interface ProjectItem {
   technology?: string;
 }
 
+function getAuthHeaders(explicitToken?: string, extraHeaders?: Record<string, string>): Record<string, string> {
+  const headers: Record<string, string> = { ...extraHeaders };
+  const token = explicitToken || (typeof window !== 'undefined' ? localStorage.getItem('syntaxhub_token') : null);
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+}
+
 /**
  * Backend API Client (Node.js Express)
  */
@@ -51,6 +60,7 @@ export const backendApi = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(userData),
+      credentials: 'include',
     });
     return res.json();
   },
@@ -60,6 +70,7 @@ export const backendApi = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(credentials),
+      credentials: 'include',
     });
     return res.json();
   },
@@ -68,6 +79,28 @@ export const backendApi = {
     const res = await fetch(`${BACKEND_API_BASE}/v1/auth/demo-login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+    });
+    return res.json();
+  },
+
+  async logout() {
+    try {
+      const res = await fetch(`${BACKEND_API_BASE}/v1/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      return await res.json();
+    } catch (e) {
+      return { success: true };
+    }
+  },
+
+  async getMe(token?: string) {
+    const headers = getAuthHeaders(token);
+    const res = await fetch(`${BACKEND_API_BASE}/v1/auth/me`, {
+      headers,
+      credentials: 'include',
     });
     return res.json();
   },
@@ -78,45 +111,45 @@ export const backendApi = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
+      credentials: 'include',
     });
     return res.json();
   },
 
   async saveAnalysis(analysisData: Record<string, any>, token?: string) {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const headers = getAuthHeaders(token, { 'Content-Type': 'application/json' });
     const res = await fetch(`${BACKEND_API_BASE}/v1/analyses`, {
       method: 'POST',
       headers,
       body: JSON.stringify(analysisData),
+      credentials: 'include',
     });
     return res.json();
   },
 
   async fetchAnalyses(savedOnly?: boolean, token?: string) {
-    const headers: Record<string, string> = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const headers = getAuthHeaders(token);
     const url = `${BACKEND_API_BASE}/v1/analyses${savedOnly ? '?saved=true' : ''}`;
-    const res = await fetch(url, { headers });
+    const res = await fetch(url, { headers, credentials: 'include' });
     return res.json();
   },
 
   async toggleSaveAnalysis(id: string, token?: string) {
-    const headers: Record<string, string> = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const headers = getAuthHeaders(token);
     const res = await fetch(`${BACKEND_API_BASE}/v1/analyses/${id}/toggle-save`, {
       method: 'PATCH',
       headers,
+      credentials: 'include',
     });
     return res.json();
   },
 
   async deleteAnalysis(id: string, token?: string) {
-    const headers: Record<string, string> = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const headers = getAuthHeaders(token);
     const res = await fetch(`${BACKEND_API_BASE}/v1/analyses/${id}`, {
       method: 'DELETE',
       headers,
+      credentials: 'include',
     });
     return res.json();
   },
@@ -125,90 +158,81 @@ export const backendApi = {
     const res = await fetch(`${BACKEND_API_BASE}/v1/ai/seed-docs`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
     });
     return res.json();
   },
 
   async queryRAG(payload: RAGQueryRequest, token?: string) {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const headers = getAuthHeaders(token, { 'Content-Type': 'application/json' });
     const res = await fetch(`${BACKEND_API_BASE}/v1/ai/rag-query`, {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),
-    });
-    return res.json();
-  },
-
-  async getMe(token: string) {
-    const res = await fetch(`${BACKEND_API_BASE}/v1/auth/me`, {
-      headers: { Authorization: `Bearer ${token}` },
+      credentials: 'include',
     });
     return res.json();
   },
 
   // Projects
   async fetchProjects(token?: string) {
-    const headers: Record<string, string> = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    const res = await fetch(`${BACKEND_API_BASE}/v1/projects`, { headers });
+    const headers = getAuthHeaders(token);
+    const res = await fetch(`${BACKEND_API_BASE}/v1/projects`, { headers, credentials: 'include' });
     return res.json();
   },
 
   async createProject(project: ProjectItem, token?: string) {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const headers = getAuthHeaders(token, { 'Content-Type': 'application/json' });
     const res = await fetch(`${BACKEND_API_BASE}/v1/projects`, {
       method: 'POST',
       headers,
       body: JSON.stringify(project),
+      credentials: 'include',
     });
     return res.json();
   },
 
   async deleteProject(id: string, token?: string) {
-    const headers: Record<string, string> = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const headers = getAuthHeaders(token);
     const res = await fetch(`${BACKEND_API_BASE}/v1/projects/${id}`, {
       method: 'DELETE',
       headers,
+      credentials: 'include',
     });
     return res.json();
   },
 
   // AI Query Logs
   async fetchAILogs(token?: string) {
-    const headers: Record<string, string> = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    const res = await fetch(`${BACKEND_API_BASE}/v1/ai/logs`, { headers });
+    const headers = getAuthHeaders(token);
+    const res = await fetch(`${BACKEND_API_BASE}/v1/ai/logs`, { headers, credentials: 'include' });
     return res.json();
   },
 
   // Snippets
   async fetchSnippets(token?: string) {
-    const headers: Record<string, string> = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    const res = await fetch(`${BACKEND_API_BASE}/v1/snippets`, { headers });
+    const headers = getAuthHeaders(token);
+    const res = await fetch(`${BACKEND_API_BASE}/v1/snippets`, { headers, credentials: 'include' });
     return res.json();
   },
 
   async createSnippet(snippet: Snippet, token?: string) {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const headers = getAuthHeaders(token, { 'Content-Type': 'application/json' });
     const res = await fetch(`${BACKEND_API_BASE}/v1/snippets`, {
       method: 'POST',
       headers,
       body: JSON.stringify(snippet),
+      credentials: 'include',
     });
     return res.json();
   },
 
   async deleteSnippet(id: string, token?: string) {
-    const headers: Record<string, string> = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const headers = getAuthHeaders(token);
     const res = await fetch(`${BACKEND_API_BASE}/v1/snippets/${id}`, {
       method: 'DELETE',
       headers,
+      credentials: 'include',
     });
     return res.json();
   },

@@ -8,6 +8,7 @@ OFFICIAL_DOCS = [
         "title": "React 19 Official Documentation & Upgrade Guide",
         "technology": "React",
         "version": "19",
+        "url": "https://react.dev/blog/2024/12/05/react-19",
         "content": """
 # React 19 Upgrade Guide & Best Practices
 
@@ -51,6 +52,7 @@ In React 19, `forwardRef` is deprecated. You can now pass `ref` directly as a re
         "title": "Java 21 Modern Features & Best Practices",
         "technology": "Java",
         "version": "21",
+        "url": "https://docs.oracle.com/en/java/javase/21/",
         "content": """
 # Java 21 LTS Official Documentation
 
@@ -101,6 +103,7 @@ static String formatter(Object obj) {
         "title": "Modern JavaScript ES2024 & Async Patterns",
         "technology": "JavaScript",
         "version": "ES2024",
+        "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/substr",
         "content": """
 # Modern JavaScript ES2024 Guide
 
@@ -152,8 +155,23 @@ const part = text.slice(0, 5);
         "title": "Python 3.13 Performance & Structural Typing Guide",
         "technology": "Python",
         "version": "3.13",
+        "url": "https://docs.python.org/3/library/datetime.html#datetime.datetime.utcnow",
         "content": """
 # Python 3.13 Official Documentation
+
+## Deprecated: datetime.datetime.utcnow()
+In Python 3.12 and 3.13, `datetime.datetime.utcnow()` and `datetime.datetime.utcfromtimestamp()` are deprecated because they return naive datetime objects without timezone information (`tzinfo=None`), which causes subtle bugs when comparing or converting timezones.
+In Python 3.13, use `datetime.datetime.now(datetime.timezone.utc)` to obtain an explicit, timezone-aware UTC datetime.
+
+```python
+# OUTDATED:
+from datetime import datetime
+now = datetime.utcnow()
+
+# MODERN & RECOMMENDED:
+from datetime import datetime, timezone
+now = datetime.now(timezone.utc)
+```
 
 ## Experimental Free-Threaded CPython (GIL Removal)
 Python 3.13 introduces experimental support for running CPython without the Global Interpreter Lock (GIL), enabling true parallel multithreading on multi-core CPU architectures.

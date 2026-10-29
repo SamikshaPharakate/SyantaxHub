@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity, ArrowRight, BookOpen, Bot, Check, ChevronDown, ChevronRight, CircleDot,
   Code2, Command, Copy, Eye, FileCode2, Folder, FolderPlus, History, LayoutDashboard,
-  Menu, Moon, MoreHorizontal, Play, Plus, RefreshCw, Search, Send, Settings, ShieldCheck,
+  LogOut, Menu, Moon, MoreHorizontal, Play, Plus, RefreshCw, Search, Send, Settings, ShieldCheck,
   Star, Tag, Terminal, Trash2, X, Zap,
 } from 'lucide-react'
 import { backendApi, aiServiceApi, Snippet, ProjectItem } from '@/lib/api'
@@ -92,7 +92,7 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`status status-${status}`}><span className="status-dot" />{status}</span>
 }
 
-function Sidebar({ active, setActive, open, setOpen, user }: { active: string; setActive: (s: string) => void; open: boolean; setOpen: (v: boolean) => void; user: any }) {
+function Sidebar({ active, setActive, open, setOpen, user, onLogout }: { active: string; setActive: (s: string) => void; open: boolean; setOpen: (v: boolean) => void; user: any; onLogout?: () => void }) {
   const go = (label: string) => { setActive(label); setOpen(false) }
   const initials = user?.name ? user.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) : 'JD'
 
@@ -127,11 +127,15 @@ function Sidebar({ active, setActive, open, setOpen, user }: { active: string; s
     </button>
     <div className="profile">
       <div className="avatar">{initials}</div>
-      <div style={{ overflow: 'hidden' }}>
+      <div style={{ overflow: 'hidden', flex: 1, minWidth: 0 }}>
         <strong style={{ whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', display: 'block' }}>{user?.name || 'Jordan Davis'}</strong>
         <small style={{ whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', display: 'block' }}>{user?.email || 'jordan@syntaxhub.dev'}</small>
       </div>
-      <MoreHorizontal size={16} className="muted" />
+      {onLogout && (
+        <button className="icon-button" onClick={onLogout} title="Log out" aria-label="Log out" style={{ color: '#94a3b8', padding: '4px' }}>
+          <LogOut size={15} />
+        </button>
+      )}
     </div>
   </aside>
 }
@@ -329,7 +333,7 @@ function Landing({ enter }: { enter: (s: string) => void }) {
   </div>
 }
 
-function Auth({ mode, enter, setUser }: { mode: 'Sign in' | 'Register'; enter: (s: string) => void; setUser: (u: any) => void }) {
+function Auth({ mode, enter, setUser }: { mode: 'Sign in' | 'Register'; enter: (s: string, user?: any) => void; setUser: (u: any) => void }) {
   const register = mode === 'Register'
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -352,14 +356,13 @@ function Auth({ mode, enter, setUser }: { mode: 'Sign in' | 'Register'; enter: (
       if (res.success && res.token) {
         localStorage.setItem('syntaxhub_token', res.token)
         if (res.user) setUser(res.user)
-        enter('Overview')
+        enter('Overview', res.user)
       } else {
         setErrorMsg(res.error || 'Authentication failed. Check your details.')
       }
     } catch (err: any) {
-      console.warn('Auth fallback trigger', err)
-      setUser({ name: name || 'Demo User', email: email || 'user@syntaxhub.dev' })
-      enter('Overview')
+      console.warn('Auth submission error', err)
+      setErrorMsg('Could not reach the server. Please check your network connection.')
     } finally {
       setLoading(false)
     }
@@ -370,18 +373,18 @@ function Auth({ mode, enter, setUser }: { mode: 'Sign in' | 'Register'; enter: (
     setErrorMsg('')
     try {
       const res = await backendApi.demoLogin()
-      if (res.token) {
+      if (res.success && res.token) {
         localStorage.setItem('syntaxhub_token', res.token)
         if (res.user) setUser(res.user)
+        enter('Overview', res.user)
       } else {
-        setUser({ name: 'Jordan Davis', email: 'jordan@syntaxhub.dev' })
+        setErrorMsg(res.error || 'Demo login failed.')
       }
     } catch (e) {
-      console.warn('Demo login local bypass', e)
-      setUser({ name: 'Jordan Davis', email: 'jordan@syntaxhub.dev' })
+      console.warn('Demo login error', e)
+      setErrorMsg('Could not connect to authentication service. Please verify server is running.')
     } finally {
       setLoading(false)
-      enter('Overview')
     }
   }
 
@@ -785,7 +788,7 @@ function Documentation() {
   </div>
 }
 
-function SettingsPage({ enter }: { enter: (s: string) => void }) {
+function SettingsPage({ enter, onLogout }: { enter: (s: string) => void; onLogout: () => void }) {
   const [model, setModel] = useState('meta-llama/llama-3.3-70b-instruct')
   const [saved, setSaved] = useState(false)
 
@@ -798,11 +801,6 @@ function SettingsPage({ enter }: { enter: (s: string) => void }) {
     localStorage.setItem('syntaxhub_openrouter_model', model)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
-  }
-
-  const handleLogout = () => {
-    localStorage.removeItem('syntaxhub_token')
-    enter('Landing')
   }
 
   return <div className="page-content">
@@ -825,7 +823,7 @@ function SettingsPage({ enter }: { enter: (s: string) => void }) {
       <div className="content-card danger-card">
         <h2>Account Session</h2>
         <p style={{ fontSize: '13px', color: '#94a3b8', margin: '8px 0 16px' }}>Sign out of your active SyntaxHub workspace session.</p>
-        <button className="ghost-button" onClick={handleLogout}>Log out</button>
+        <button className="ghost-button" onClick={onLogout}>Log out</button>
       </div>
     </div>
   </div>
@@ -941,9 +939,60 @@ function Chat({ onClose, user }: { onClose?: () => void; user?: any }) {
   </div>
 }
 
-function CommandPalette({ close, go }: { close: () => void; go: (s: string) => void }) {
+function CommandPalette({ close, go, onLogout }: { close: () => void; go: (s: string) => void; onLogout: () => void }) {
   const commands = ['New analysis', 'Open snippets', 'Open projects', 'Open saved analyses', 'Open history', 'Search documentation', 'Open settings', 'Log out']
-  return <div className="modal-backdrop" onClick={close}><div className="command-palette" onClick={e => e.stopPropagation()}><div className="command-search"><Search size={17} /><input autoFocus placeholder="Search commands..." /><kbd>ESC</kbd></div><div className="command-section"><span>Navigation</span>{commands.map((c, i) => <button key={c} onClick={() => { go(c === 'New analysis' ? 'Analyze' : c.replace('Open ', '').replace('Search ', '').replace('Log out', 'Landing')); close() }}><span className="command-icon">{i === 0 ? <Plus size={15} /> : <Command size={15} />}</span>{c}</button>)}</div></div></div>
+  return <div className="modal-backdrop" onClick={close}><div className="command-palette" onClick={e => e.stopPropagation()}><div className="command-search"><Search size={17} /><input autoFocus placeholder="Search commands..." /><kbd>ESC</kbd></div><div className="command-section"><span>Navigation</span>{commands.map((c, i) => <button key={c} onClick={() => {
+    if (c === 'Log out') {
+      onLogout()
+    } else {
+      go(c === 'New analysis' ? 'Analyze' : c.replace('Open ', '').replace('Search ', ''))
+    }
+    close()
+  }}><span className="command-icon">{i === 0 ? <Plus size={15} /> : c === 'Log out' ? <LogOut size={15} /> : <Command size={15} />}</span>{c}</button>)}</div></div></div>
+}
+
+const PROTECTED_ROUTES = [
+  'Overview',
+  'Analyze',
+  'Snippets',
+  'Projects',
+  'Saved Analyses',
+  'History',
+  'Settings',
+  'AI Chat',
+]
+
+const HASH_MAP: Record<string, string> = {
+  '#overview': 'Overview',
+  '#analyze': 'Analyze',
+  '#snippets': 'Snippets',
+  '#projects': 'Projects',
+  '#saved-analyses': 'Saved Analyses',
+  '#history': 'History',
+  '#settings': 'Settings',
+  '#chat': 'AI Chat',
+  '#ai-chat': 'AI Chat',
+  '#documentation': 'Documentation',
+  '#docs': 'Documentation',
+  '#signin': 'Sign in',
+  '#sign-in': 'Sign in',
+  '#register': 'Register',
+  '#landing': 'Landing',
+}
+
+const VIEW_HASH: Record<string, string> = {
+  'Overview': '#overview',
+  'Analyze': '#analyze',
+  'Snippets': '#snippets',
+  'Projects': '#projects',
+  'Saved Analyses': '#saved-analyses',
+  'History': '#history',
+  'Settings': '#settings',
+  'AI Chat': '#ai-chat',
+  'Documentation': '#documentation',
+  'Sign in': '#signin',
+  'Register': '#register',
+  'Landing': '',
 }
 
 export default function SyntaxHubApp() {
@@ -952,26 +1001,139 @@ export default function SyntaxHubApp() {
   const [command, setCommand] = useState(false)
   const [chat, setChat] = useState(false)
   const [user, setUser] = useState<any>(null)
+  const [authLoading, setAuthLoading] = useState(true)
 
+  const userRef = useRef<any>(null)
+  userRef.current = user
+
+  const handleLogout = async () => {
+    try {
+      await backendApi.logout()
+    } catch (e) {
+      // Ignore network errors on logout
+    }
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('syntaxhub_token')
+      localStorage.removeItem('syntaxhub_active_view')
+      window.location.hash = '#signin'
+    }
+    setUser(null)
+    setActive('Sign in')
+  }
+
+  const navigateTo = (view: string, updateHash = true, explicitUser?: any) => {
+    const currentUser = explicitUser !== undefined ? explicitUser : userRef.current
+    if (PROTECTED_ROUTES.includes(view) && !currentUser) {
+      setActive('Sign in')
+      if (updateHash && typeof window !== 'undefined') window.location.hash = '#signin'
+      return
+    }
+
+    setActive(view)
+    if (typeof window !== 'undefined') {
+      if (currentUser && PROTECTED_ROUTES.includes(view)) {
+        localStorage.setItem('syntaxhub_active_view', view)
+      }
+      if (updateHash && VIEW_HASH[view] !== undefined) {
+        window.location.hash = VIEW_HASH[view]
+      }
+    }
+  }
+
+  const enter = (s: string, authUser?: any) => navigateTo(s, true, authUser)
+
+  // Verify and restore authenticated session on initial mount
   useEffect(() => {
-    const f = (e: KeyboardEvent) => {
+    let isMounted = true
+
+    const resolveInitialView = () => {
+      if (typeof window === 'undefined') return 'Landing'
+      const hash = window.location.hash.toLowerCase()
+      if (hash && HASH_MAP[hash]) return HASH_MAP[hash]
+      const saved = localStorage.getItem('syntaxhub_active_view')
+      if (saved && (PROTECTED_ROUTES.includes(saved) || saved === 'Documentation')) return saved
+      return 'Landing'
+    }
+
+    const initialTarget = resolveInitialView()
+    const token = typeof window !== 'undefined' ? localStorage.getItem('syntaxhub_token') || undefined : undefined
+
+    backendApi.getMe(token)
+      .then(res => {
+        if (!isMounted) return
+        if (res && res.success && res.user) {
+          setUser(res.user)
+          // If the initial target was an auth page or landing, send into dashboard
+          if (initialTarget === 'Landing' || initialTarget === 'Sign in' || initialTarget === 'Register') {
+            setActive('Overview')
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('syntaxhub_active_view', 'Overview')
+              window.location.hash = '#overview'
+            }
+          } else {
+            setActive(initialTarget)
+            if (typeof window !== 'undefined' && VIEW_HASH[initialTarget]) {
+              window.location.hash = VIEW_HASH[initialTarget]
+            }
+          }
+        } else {
+          // Token invalid, expired, or unauthenticated
+          setUser(null)
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('syntaxhub_token')
+            localStorage.removeItem('syntaxhub_active_view')
+          }
+          if (PROTECTED_ROUTES.includes(initialTarget)) {
+            setActive('Sign in')
+            if (typeof window !== 'undefined') window.location.hash = '#signin'
+          } else if (initialTarget === 'Documentation' || initialTarget === 'Register' || initialTarget === 'Sign in') {
+            setActive(initialTarget)
+          } else {
+            setActive('Landing')
+          }
+        }
+      })
+      .catch(() => {
+        if (!isMounted) return
+        setUser(null)
+        if (PROTECTED_ROUTES.includes(initialTarget)) {
+          setActive('Sign in')
+          if (typeof window !== 'undefined') window.location.hash = '#signin'
+        } else {
+          setActive('Landing')
+        }
+      })
+      .finally(() => {
+        if (isMounted) setAuthLoading(false)
+      })
+
+    const handleHash = () => {
+      const hash = window.location.hash.toLowerCase()
+      if (hash && HASH_MAP[hash]) {
+        const target = HASH_MAP[hash]
+        if (PROTECTED_ROUTES.includes(target) && !userRef.current) {
+          setActive('Sign in')
+        } else {
+          setActive(target)
+        }
+      }
+    }
+    window.addEventListener('hashchange', handleHash)
+
+    const handleKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setCommand(true) }
       if (e.key === 'Escape') { setCommand(false); setSidebar(false) }
     }
-    window.addEventListener('keydown', f)
+    window.addEventListener('keydown', handleKey)
 
-    const token = localStorage.getItem('syntaxhub_token')
-    if (token) {
-      backendApi.getMe(token).then(res => {
-        if (res.success && res.user) setUser(res.user)
-      }).catch(() => {})
+    return () => {
+      isMounted = false
+      window.removeEventListener('hashchange', handleHash)
+      window.removeEventListener('keydown', handleKey)
     }
-
-    return () => window.removeEventListener('keydown', f)
   }, [])
 
-  const signed = active !== 'Landing' && active !== 'Sign in' && active !== 'Register'
-  const enter = (s: string) => setActive(s)
+  const signed = !!user && active !== 'Landing' && active !== 'Sign in' && active !== 'Register'
 
   const page = useMemo(() => {
     if (active === 'Landing') return <Landing enter={enter} />
@@ -981,21 +1143,63 @@ export default function SyntaxHubApp() {
     if (active === 'Projects') return <ProjectsPage />
     if (active === 'Documentation') return <Documentation />
     if (active === 'AI Chat') return <Chat user={user} />
-    if (active === 'Saved Analyses' || active === 'History') return <ListPage kind={active} goAnalyze={() => setActive('Analyze')} />
-    if (active === 'Settings') return <SettingsPage enter={enter} />
-    return <Overview goAnalyze={() => setActive('Analyze')} user={user} />
+    if (active === 'Saved Analyses' || active === 'History') return <ListPage kind={active} goAnalyze={() => enter('Analyze')} />
+    if (active === 'Settings') return <SettingsPage enter={enter} onLogout={handleLogout} />
+    return <Overview goAnalyze={() => enter('Analyze')} user={user} />
   }, [active, user])
+
+  // Show clean loading state while authentication is being verified
+  if (authLoading) {
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100vh',
+        background: '#090a0f',
+        color: '#fff',
+        fontFamily: 'system-ui, -apple-system, sans-serif'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+          <div style={{
+            width: '36px',
+            height: '36px',
+            borderRadius: '8px',
+            background: 'linear-gradient(135deg, #3b82f6, #6366f1)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 0 20px rgba(99, 102, 241, 0.4)'
+          }}>
+            <Code2 size={20} color="#fff" />
+          </div>
+          <span style={{ fontSize: '20px', fontWeight: 600, letterSpacing: '-0.02em' }}>SyntaxHub</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8', fontSize: '13px' }}>
+          <RefreshCw size={15} style={{ animation: 'spin 1s linear infinite' }} />
+          <span>Verifying workspace session...</span>
+        </div>
+        <style>{`
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    )
+  }
 
   if (!signed) return page
 
   return <div className="app-shell">
-    <Sidebar active={active} setActive={setActive} open={sidebar} setOpen={setSidebar} user={user} />
+    <Sidebar active={active} setActive={enter} open={sidebar} setOpen={setSidebar} user={user} onLogout={handleLogout} />
     <div className="app-main">
       <Topbar active={active} onCommand={() => setCommand(true)} onMenu={() => setSidebar(true)} user={user} />
       {page}
     </div>
     {chat && <div className="chat-drawer"><Chat onClose={() => setChat(false)} user={user} /></div>}
-    {command && <CommandPalette close={() => setCommand(false)} go={setActive} />}
+    {command && <CommandPalette close={() => setCommand(false)} go={enter} onLogout={handleLogout} />}
   </div>
 }
 

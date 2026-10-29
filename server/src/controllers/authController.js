@@ -7,6 +7,28 @@ const generateToken = (id) => {
   });
 };
 
+const sendTokenResponse = (user, statusCode, res) => {
+  const token = generateToken(user._id);
+
+  // 30 days cookie expiration
+  const cookieOptions = {
+    expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    path: '/',
+  };
+
+  res
+    .status(statusCode)
+    .cookie('token', token, cookieOptions)
+    .json({
+      success: true,
+      token,
+      user: { id: user._id, name: user.name, email: user.email, role: user.role },
+    });
+};
+
 exports.register = async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
@@ -17,13 +39,7 @@ exports.register = async (req, res, next) => {
     }
 
     const user = await User.create({ name, email, password });
-    const token = generateToken(user._id);
-
-    res.status(201).json({
-      success: true,
-      token,
-      user: { id: user._id, name: user.name, email: user.email, role: user.role },
-    });
+    sendTokenResponse(user, 201, res);
   } catch (err) {
     next(err);
   }
@@ -42,13 +58,7 @@ exports.login = async (req, res, next) => {
       return res.status(401).json({ success: false, error: 'Invalid credentials' });
     }
 
-    const token = generateToken(user._id);
-
-    res.status(200).json({
-      success: true,
-      token,
-      user: { id: user._id, name: user.name, email: user.email, role: user.role },
-    });
+    sendTokenResponse(user, 200, res);
   } catch (err) {
     next(err);
   }
@@ -68,12 +78,25 @@ exports.demoLogin = async (req, res, next) => {
       });
     }
 
-    const token = generateToken(user._id);
+    sendTokenResponse(user, 200, res);
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.logout = async (req, res, next) => {
+  try {
+    res.cookie('token', 'none', {
+      expires: new Date(Date.now() + 5 * 1000),
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      path: '/',
+    });
 
     res.status(200).json({
       success: true,
-      token,
-      user: { id: user._id, name: user.name, email: user.email, role: user.role },
+      message: 'Logged out successfully',
     });
   } catch (err) {
     next(err);

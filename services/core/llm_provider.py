@@ -312,6 +312,8 @@ class LLMProvider:
 
         # --- Python patterns ---
         if "python" in tech or "py" in tech or "python" in lang or "py" in lang:
+            if re.search(r'datetime\.utcnow\s*\(|\.utcnow\s*\(', code_part):
+                issues.append("- **Deprecated `datetime.datetime.utcnow()`**: `datetime.utcnow()` is deprecated in Python 3.12 and Python 3.13. It returns a naive datetime without timezone info (`tzinfo=None`), which causes comparison bugs and offset issues. Replace with `datetime.now(timezone.utc)`.")
             if re.search(r'^\s*print\s+[^(]', code_part, re.MULTILINE):
                 issues.append("- **Python 2 Syntax**: Python 2 style `print` statement detected. Replace with `print()` function.")
             if re.search(r'except\s*:', code_part):
